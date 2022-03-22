@@ -251,6 +251,10 @@
 									"type": "boolean",
 									"title": "View Diff"
 								},
+								"viewDiffInFile": {
+									"type": "boolean",
+									"title": "View Diff in file"
+								},
 								"viewFileAtThisRevision": {
 									"type": "boolean",
 									"title": "View File at this Revision"

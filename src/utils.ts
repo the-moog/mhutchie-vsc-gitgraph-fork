@@ -439,6 +439,42 @@ export function viewDiff(repo: string, fromHash: string, toHash: string, oldFile
 }
 
 /**
+ * Open diff in .diff file
+ * @param repo The repository the file is contained in.
+ * @param fromHash The revision of the left-side of the Diff View.
+ * @param toHash The revision of the right-side of the Diff View.
+ * @param oldFilePath The relative path of the left-side file within the repository.
+ * @param newFilePath The relative path of the right-side file within the repository.
+ * @param type The Git file status of the change.
+ * @returns A promise resolving to the ErrorInfo of the executed command.
+ */
+export function viewDiffInFile(repo: string, fromHash: string, toHash: string, oldFilePath: string, newFilePath: string, type: GitFileStatus) {
+	const cmd = `cd '${repo}';git diff ${fromHash === toHash ? fromHash + '^' : fromHash} ${toHash} -- '${repo}/${oldFilePath}' > '${repo}/.project.diff'`;
+	return execShell(cmd).then(
+		async () => {
+			let diffUri = vscode.Uri.parse(`${repo}/.project.diff`);
+
+			await vscode.commands.executeCommand('vscode.openWith', diffUri, 'diffViewer', { preview: true, viewColumn: vscode.ViewColumn.Beside, preserveFocus: false });
+			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+			await vscode.commands.executeCommand('vscode.openWith', diffUri, 'diffViewer', { preview: true, viewColumn: vscode.ViewColumn.Beside });
+
+			return null;
+		}
+		, () => 'Visual Studio Code was unable to load the diff editor for' + newFilePath + '.' + type);
+}
+
+export function execShell(cmd: string) {
+	return new Promise<string>((resolve, reject) => {
+		cp.exec(cmd, (err, out) => {
+			if (err) {
+				return reject(err);
+			}
+			return resolve(out);
+		});
+	});
+}
+
+/**
  * Open the Visual Studio Code Diff View to display the changes of a file between a commit hash and the working tree.
  * @param repo The repository the file is contained in.
  * @param hash The revision of the left-side of the Diff View.
