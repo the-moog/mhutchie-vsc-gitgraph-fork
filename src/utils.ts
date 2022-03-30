@@ -7,6 +7,7 @@ import { DataSource } from './dataSource';
 import { DiffSide, encodeDiffDocUri } from './diffDocProvider';
 import { ExtensionState } from './extensionState';
 import { ErrorInfo, GitFileStatus, GitRepoSet, PullRequestConfig, PullRequestProvider, RepoDropdownOrder } from './types';
+import { GitDiffView } from './gitDiffView';
 
 export const UNCOMMITTED = '*';
 export const UNABLE_TO_FIND_GIT_MSG = 'Unable to find a Git executable. Either: Set the Visual Studio Code Setting "git.path" to the path and filename of an existing Git executable, or install Git and restart Visual Studio Code.';
@@ -448,19 +449,26 @@ export function viewDiff(repo: string, fromHash: string, toHash: string, oldFile
  * @param type The Git file status of the change.
  * @returns A promise resolving to the ErrorInfo of the executed command.
  */
-export function viewDiffInFile(repo: string, fromHash: string, toHash: string, oldFilePath: string, newFilePath: string, type: GitFileStatus) {
-	const cmd = `cd '${repo}';git diff ${fromHash === toHash ? fromHash + '^' : fromHash} ${toHash} -- '${repo}/${oldFilePath}' > '${repo}/.project.diff'`;
-	return execShell(cmd).then(
-		async () => {
-			let diffUri = vscode.Uri.parse(`${repo}/.project.diff`);
+export function viewDiffInFile(extensionPath: string, repo: string, fromHash: string, toHash: string, oldFilePath: string, newFilePath: string, type: GitFileStatus) {
+	if (type !== GitFileStatus.Untracked) {
+		if (fromHash === UNCOMMITTED) fromHash = 'HEAD';
 
-			await vscode.commands.executeCommand('vscode.openWith', diffUri, 'diffViewer', { preview: true, viewColumn: vscode.ViewColumn.Beside, preserveFocus: false });
-			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-			await vscode.commands.executeCommand('vscode.openWith', diffUri, 'diffViewer', { preview: true, viewColumn: vscode.ViewColumn.Beside });
+		fromHash = fromHash === toHash ? fromHash + '^' : fromHash;
 
-			return null;
+		if (toHash === '*') {
+			toHash = '';
 		}
-		, () => 'Visual Studio Code was unable to load the diff editor for' + newFilePath + '.' + type);
+
+		const cmd = `cd '${repo}';git diff ${fromHash} ${toHash} -- ${oldFilePath}`;
+		return execShell(cmd).then(
+			(stdout) => {
+				GitDiffView.createOrShow(extensionPath, stdout, undefined);
+				return null;
+			}
+			, () => 'Visual Studio Code was unable to load the diff editor for' + newFilePath + '.' + type);
+	} else {
+		return openFile(repo, newFilePath);
+	}
 }
 
 export function execShell(cmd: string) {
