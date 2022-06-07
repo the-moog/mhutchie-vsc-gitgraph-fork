@@ -42,6 +42,7 @@ declare global {
 			summary: boolean,
 			fileView: number
 		};
+		foldersExpanded: boolean;
 	}
 
 	interface WebViewState {
