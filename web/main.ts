@@ -1922,10 +1922,7 @@ class GitGraphView {
 		}
 	}
 
-	private getNumColumns() {
-		let colVisibility = this.getColumnVisibility();
-		return 2 + (colVisibility.date ? 1 : 0) + (colVisibility.author ? 1 : 0) + (colVisibility.commit ? 1 : 0);
-	}
+
 
 	/**
 	 * Scroll the view to the previous or next stash.
@@ -2579,12 +2576,13 @@ class GitGraphView {
 		const commitOrder = this.getCommitOrder(expandedCommit.commitHash, expandedCommit.compareWithHash === null ? expandedCommit.commitHash : expandedCommit.compareWithHash);
 		const codeReviewPossible = !expandedCommit.loading && commitOrder.to !== UNCOMMITTED;
 		const externalDiffPossible = !expandedCommit.loading && (expandedCommit.compareWithHash !== null || this.commits[this.commitLookup[expandedCommit.commitHash]].parents.length > 0);
+		let elemWasNull;
 
 		if (elem === null) {
-			elem = document.createElement(isDocked ? 'div' : 'tr');
+			elem = document.createElement(isDocked ? 'div' : 'div');
 			elem.id = 'cdv';
 			elem.className = isDocked ? 'docked' : 'inline';
-			this.setCdvHeight(elem, isDocked);
+			elemWasNull = true;
 			if (isDocked) {
 				document.body.appendChild(elem);
 			} else {
@@ -2641,10 +2639,11 @@ class GitGraphView {
 			(externalDiffPossible ? '<div id="cdvExternalDiff" class="cdvControlBtn">' + SVG_ICONS.linkExternal + '</div>' : '') +
 			'</div><div class="cdvHeightResize"></div>';
 
-		elem.innerHTML = isDocked ? html : '<td><div class="cdvHeightResize"></div></td><td colspan="' + (this.getNumColumns() - 1) + '">' + html + '</td>';
+		elem.innerHTML = isDocked ? html : '<div id="cdvInlineWindow"><div id="cdvInlineColorOverlay">' + html + '</div></div>';
+		if(elemWasNull)
+			this.setCdvHeight(elem, isDocked);
 		if (!expandedCommit.loading) this.setCdvDivider();
-		if (!isDocked) this.renderGraph();
-
+		// if (!isDocked) this.renderGraph();
 		if (!refresh) {
 			if (isDocked) {
 				let elemTop = this.controlsElem.clientHeight + expandedCommit.commitElem.offsetTop;
@@ -2768,9 +2767,15 @@ class GitGraphView {
 			}
 		}
 
+
 		let heightPx = height + 'px';
-		elem.style.height = heightPx;
-		if (isDocked) this.viewElem.style.bottom = heightPx;
+		if(isDocked) {
+			elem.style.height = heightPx;
+			this.viewElem.style.bottom = heightPx;
+		} else {
+			let inlineElem = document.getElementById('cdvInlineWindow');
+			if(inlineElem)inlineElem.style.height = heightPx;
+		}
 	}
 
 	private setCdvDivider() {

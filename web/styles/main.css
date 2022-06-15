@@ -303,15 +303,28 @@ table { border-collapse: collapse; }
 /* Commit Details View */
 
 #cdv.inline{
-	vertical-align:top;
-}
-#cdv.inline td{
-	background-color:rgba(128,128,128,0.1);
 	position:relative;
+	width:100%;
+}
+#cdvInlineWindow{
+	display:block;
+	position:absolute;
+	margin-left:100%;
+	width: -webkit-calc(99vw - 100%);
+	background-color: var(--vscode-editor-background);
 	font-size:13px;
 	line-height:18px;
 	white-space:normal;
+	cursor:default;
+	z-index:11;
+
+	
 }
+#cdvInlineColorOverlay{
+	background-color:rgba(128,128,128,0.1);
+	width:100%;
+	height:100%}
+
 #cdv.docked{
 	display:block;
 	position:fixed;
@@ -538,7 +551,7 @@ table { border-collapse: collapse; }
 	border-bottom:2px solid rgba(128,128,128,0.2);
 }
 
-#cdv.docked #cdvContent, #cdv.docked #cdvControls{
+#cdv #cdvContent, #cdv #cdvControls{
 	top:2px;
 	bottom:0;
 }
