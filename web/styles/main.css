@@ -477,13 +477,36 @@ table { border-collapse: collapse; }
 	fill:#e00000;
 	opacity:0.8;
 }
-
+.cdvSummaryToggle{
+	position: absolute;
+	top:0;
+	margin:0;
+	left:-21px;
+	z-index:100;
+	overflow:visible;
+	cursor:pointer;
+	padding:2px;
+	width:16px;
+	height:16px;
+}
+#cdvSummaryToggleParent{
+	background-color: var(--vscode-editor-background);
+}
+#cdvSummaryToggleBtn{
+	background-color:rgba(128,128,128,0.1);
+}
+#cdvSummaryToggleBtn svg{
+	fill:var(--vscode-editor-foreground);
+	fill-opacity:0.6;
+}
 #cdvFiles{
 	left:50%;
 	right:0;
 	padding:4px 8px 8px 0;
 	-webkit-user-select:none;
 	user-select:none;
+	overflow:visible;
+
 }
 #cdvFiles ul{
 	list-style-type:none;
