@@ -459,10 +459,10 @@ export function viewDiffInFile(extensionPath: string, repo: string, fromHash: st
 			toHash = '';
 		}
 
-		const cmd = `cd '${repo}';git diff ${fromHash} ${toHash} -- ${oldFilePath}`;
+		const cmd = `cd '${repo}';git diff ${fromHash} ${toHash} -- '${oldFilePath}'`;
 		return execShell(cmd).then(
 			(stdout) => {
-				GitDiffView.createOrShow(extensionPath, stdout, undefined);
+				GitDiffView.createOrShow(extensionPath, stdout, undefined, cmd);
 				return null;
 			}
 			, () => 'Visual Studio Code was unable to load the diff editor for' + newFilePath + '.' + type);
