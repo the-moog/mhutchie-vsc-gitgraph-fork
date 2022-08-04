@@ -96,6 +96,11 @@
 				"title": "Open File",
 				"icon": "$(go-to-file)",
 				"enablement": "isInDiffEditor && resourceScheme == git-graph && git-graph:codiconsSupported"
+			},
+			{
+				"category": "Git Graph",
+				"command": "git-graph.viewGitDiff",
+				"title": "View Git Diff"
 			}
 		],
 		"configuration": {

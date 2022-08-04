@@ -14,26 +14,28 @@ export class GitDiffView extends Disposable {
 	private isPanelVisible: boolean = true;
 	private gitCmd: string;
 	private logger = vscode.window.createOutputChannel('gitDiffBySW');
-	private refresher: NodeJS.Timer;
+	private filePath: string
 
 	public static createOrShow(
 		extensionPath: string,
 		diffContent: string,
 		column: vscode.ViewColumn = vscode.ViewColumn.Beside,
-		gitCmd: string
+		gitCmd: string,
+		filePath: string
 	) {
 		if (GitDiffView.currentPanel) {
 			GitDiffView.currentPanel.panel.reveal(column);
 			GitDiffView.currentPanel.gitCmd = gitCmd;
+			GitDiffView.currentPanel.filePath = filePath;
 			GitDiffView.currentPanel.panel.webview.html = GitDiffView.currentPanel.getHtmlForWebview(diffContent);
-			GitDiffView.currentPanel.startRefresher();
 		} else {
 			// If Git Graph panel doesn't already exist
 			GitDiffView.currentPanel = new GitDiffView(
 				extensionPath,
 				diffContent,
 				column,
-				gitCmd
+				gitCmd,
+				filePath
 			);
 		}
 	}
@@ -42,7 +44,8 @@ export class GitDiffView extends Disposable {
 		extensionPath: string,
 		diffContent: string,
 		column: vscode.ViewColumn,
-		gitCmd: string
+		gitCmd: string,
+		filePath: string
 	) {
 		super();
 		this.gitCmd = gitCmd;
@@ -58,10 +61,19 @@ export class GitDiffView extends Disposable {
 				]
 			}
 		);
-
-		this.refresher = this.startRefresher();
-
+		this.filePath = filePath;
 		this.panel.webview.html = this.getHtmlForWebview(diffContent);
+
+		// refresh diff view when file changed
+		vscode.workspace.onDidSaveTextDocument(async ({ uri }) => {
+			// This filePath may be full path or relative path
+			if (uri.path && uri.path.endsWith(this.filePath)) {
+				this.logger.appendLine(
+					'<<<refreshViewContent>>>  ' + this.filePath
+				);
+				this.refreshViewContent();
+			}
+		});
 
 		this.registerDisposables(
 			// Dispose Git Graph View resources when disposed
@@ -77,32 +89,10 @@ export class GitDiffView extends Disposable {
 				if (this.panel.visible !== this.isPanelVisible) {
 					this.isPanelVisible = this.panel.visible;
 				}
-
-				if (this.isPanelVisible) {
-					this.startRefresher();
-				} else {
-					this.stopRefresher();
-				}
 			}),
 			// Dispose the Webview Panel when disposed
 			this.panel
 		);
-	}
-
-	private startRefresher() {
-		if (!this.refresher) {
-			this.refresher = setInterval(() => {
-				this.refreshViewContent();
-			}, 5000);
-
-			this.logger.appendLine('===start refresher===');
-		}
-		return this.refresher;
-	}
-
-	private stopRefresher() {
-		clearInterval(this.refresher);
-		this.logger.appendLine('===stop refresher===');
 	}
 
 	private refreshViewContent() {
@@ -135,6 +125,7 @@ export class GitDiffView extends Disposable {
 			</div>
 
 			<div>
+				<hr/><br/>
 				<b>The cmd use to generate this is:</b><br/>
 				${this.gitCmd};
 			</div>
