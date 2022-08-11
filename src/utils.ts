@@ -460,12 +460,8 @@ export function viewDiffInFile(extensionPath: string, repo: string, fromHash: st
 		}
 
 		const cmd = `cd '${repo}';git diff ${fromHash} ${toHash} -- '${oldFilePath}'`;
-		return execShell(cmd).then(
-			(stdout) => {
-				GitDiffView.createOrShow(extensionPath, stdout, undefined, cmd, newFilePath);
-				return null;
-			}
-			, () => 'Visual Studio Code was unable to load the diff editor for' + newFilePath + '.' + type);
+		GitDiffView.createOrShow(extensionPath, cmd, newFilePath);
+		return null;
 	} else {
 		return openFile(repo, newFilePath);
 	}
@@ -473,12 +469,8 @@ export function viewDiffInFile(extensionPath: string, repo: string, fromHash: st
 
 export function viewGitDiffByPath(extensionPath: string, repo: string, filePath: string) {
 	const cmd = `cd '${repo}';git diff -- '${filePath}'`;
-	return execShell(cmd).then(
-		(stdout) => {
-			GitDiffView.createOrShow(extensionPath, stdout, undefined, cmd, filePath);
-			return null;
-		}
-		, () => 'Visual Studio Code was unable to load the diff editor for' + filePath );
+	GitDiffView.createOrShow(extensionPath, cmd, filePath);
+	return null;
 }
 
 export function execShell(cmd: string) {

@@ -14,38 +14,35 @@ export class GitDiffView extends Disposable {
 	private isPanelVisible: boolean = true;
 	private gitCmd: string;
 	private logger = vscode.window.createOutputChannel('gitDiffBySW');
-	private filePath: string
+	private filePath: string;
 
 	public static createOrShow(
 		extensionPath: string,
-		diffContent: string,
-		column: vscode.ViewColumn = vscode.ViewColumn.Beside,
 		gitCmd: string,
-		filePath: string
+		filePath: string,
+		column: vscode.ViewColumn = vscode.ViewColumn.Beside
 	) {
 		if (GitDiffView.currentPanel) {
 			GitDiffView.currentPanel.panel.reveal(column);
 			GitDiffView.currentPanel.gitCmd = gitCmd;
 			GitDiffView.currentPanel.filePath = filePath;
-			GitDiffView.currentPanel.panel.webview.html = GitDiffView.currentPanel.getHtmlForWebview(diffContent);
+			GitDiffView.currentPanel.refreshViewContent();
 		} else {
 			// If Git Graph panel doesn't already exist
 			GitDiffView.currentPanel = new GitDiffView(
 				extensionPath,
-				diffContent,
-				column,
 				gitCmd,
-				filePath
+				filePath,
+				column
 			);
 		}
 	}
 
 	private constructor(
 		extensionPath: string,
-		diffContent: string,
-		column: vscode.ViewColumn,
 		gitCmd: string,
-		filePath: string
+		filePath: string,
+		column: vscode.ViewColumn
 	) {
 		super();
 		this.gitCmd = gitCmd;
@@ -62,7 +59,7 @@ export class GitDiffView extends Disposable {
 			}
 		);
 		this.filePath = filePath;
-		this.panel.webview.html = this.getHtmlForWebview(diffContent);
+		this.refreshViewContent();
 
 		// refresh diff view when file changed
 		vscode.workspace.onDidSaveTextDocument(async ({ uri }) => {
@@ -106,7 +103,8 @@ export class GitDiffView extends Disposable {
 	 * @returns The HTML.
 	 */
 	private getHtmlForWebview(diffContent: string): string {
-		return /* html */ `
+		return (
+			/* html */ `
 		<!DOCTYPE html>
 		<html lang="en" id="diff-2-html">
 		<head>
@@ -114,7 +112,9 @@ export class GitDiffView extends Disposable {
 			<meta charset="UTF-8">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
 			<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-			<link rel="stylesheet" type="text/css" href="` + this.getMediaUri('out.min.css') + `">
+			<link rel="stylesheet" type="text/css" href="` +
+			this.getMediaUri('out.min.css') +
+			`">
 			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/github.min.css" />
 			<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
 			<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
@@ -130,7 +130,8 @@ export class GitDiffView extends Disposable {
 				${this.gitCmd};
 			</div>
 		</body>
-		</html>`;
+		</html>`
+		);
 	}
 
 	/* URI Manipulation Methods */
