@@ -69,6 +69,11 @@ export class GitDiffView extends Disposable {
 					'<<<refreshViewContent>>>  ' + this.filePath
 				);
 				this.refreshViewContent();
+			} else if (this.filePath === '.') {
+				this.logger.appendLine(
+					'<<<refreshViewContent>>> for current repository.'
+				);
+				this.refreshViewContent();
 			}
 		});
 

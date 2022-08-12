@@ -101,6 +101,11 @@
 				"category": "Git Graph",
 				"command": "git-graph.viewGitDiff",
 				"title": "View Git Diff"
+			},
+			{
+				"category": "Git Graph",
+				"command": "git-graph.viewGitDiffForRepo",
+				"title": "View Git Diff For Repository"
 			}
 		],
 		"configuration": {

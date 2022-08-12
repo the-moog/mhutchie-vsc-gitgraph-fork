@@ -473,6 +473,13 @@ export function viewGitDiffByPath(extensionPath: string, repo: string, filePath:
 	return null;
 }
 
+export function viewGitDiffForRepo(extensionPath: string, repo: string) {
+	const filePath = '.';
+	const cmd = `cd '${repo}'; git add -N --no-all ${filePath}; git diff ${filePath}`;
+	GitDiffView.createOrShow(extensionPath, cmd, filePath);
+	return null;
+}
+
 export function execShell(cmd: string) {
 	return new Promise<string>((resolve, reject) => {
 		cp.exec(cmd, (err, out) => {
