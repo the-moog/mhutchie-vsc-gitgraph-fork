@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { html } from 'diff2html';
 import { Disposable, toDisposable } from './utils/disposable';
-import { execShell } from './utils';
+import { execShell, getNonce } from './utils';
 /**
  * Manages the Git Graph View.
  */
@@ -95,6 +95,26 @@ export class GitDiffView extends Disposable {
 			// Dispose the Webview Panel when disposed
 			this.panel
 		);
+
+		this.panel.webview.onDidReceiveMessage(
+			(message) => {
+				switch (message.command) {
+					case 'showErrorMessage':
+						vscode.window.showErrorMessage(message.message);
+						return;
+					case 'showMessage':
+						vscode.window.showInformationMessage(message.message);
+						return;
+					case 'openFile':
+						vscode.window.showInformationMessage('todo:openFile');
+						return;
+					case 'revertFile':
+						vscode.window.showInformationMessage('todo:revertFile');
+						return;
+				}
+			},
+			undefined
+		);
 	}
 
 	private refreshViewContent() {
@@ -105,9 +125,12 @@ export class GitDiffView extends Disposable {
 	}
 	/**
 	 * Get the HTML document to be loaded in the Webview.
+	 * https://cdnjs.com/libraries/highlight.js
 	 * @returns The HTML.
 	 */
 	private getHtmlForWebview(diffContent: string): string {
+		const nonce = getNonce();
+
 		return (
 			/* html */ `
 		<!DOCTYPE html>
@@ -120,11 +143,28 @@ export class GitDiffView extends Disposable {
 			<link rel="stylesheet" type="text/css" href="` +
 			this.getMediaUri('out.min.css') +
 			`">
-			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/github.min.css" />
+			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/styles/github.min.css" />
 			<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
 			<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
+			<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+			<script nonce="${nonce}">
+				const _vscodeApi = acquireVsCodeApi();
+				jQuery(function() {
+					_vscodeApi.postMessage({command: 'showMessage', message:'start'});
+					jQuery('#git-diff-body').on('click','.custom-git-btn',function(evt){
+						_vscodeApi.postMessage(jQuery(this).data());
+					});
+					_vscodeApi.postMessage({command: 'showMessage', message:'end'});
+				});
+			</script>
 		</head>
-		<body style="position:inherit">
+		<body style="position:inherit" id="git-diff-body">
+			<div>
+				<button class="custom-git-btn" data-command="showMessage" data-message="Normal Message">Show message</button>
+				<button class="custom-git-btn" data-command="showErrorMessage" data-message="Error Msg">Show Error Message</button>
+				<button class="custom-git-btn" data-command="openFile">Open File</button>
+				<button class="custom-git-btn" data-command="revertFile">Revert File</button>
+			</div>
 			<div id="app">
 				${html(diffContent)}
 			</div>
@@ -138,7 +178,6 @@ export class GitDiffView extends Disposable {
 		</html>`
 		);
 	}
-
 	/* URI Manipulation Methods */
 
 	/**
