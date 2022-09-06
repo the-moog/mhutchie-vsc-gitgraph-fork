@@ -14,6 +14,7 @@ export class GitDiffView extends Disposable {
 	private isPanelVisible: boolean = true;
 	private gitCmd: string;
 	private logger = vscode.window.createOutputChannel('gitDiffBySW');
+	private repoPath: string;
 	private filePath: string;
 
 	public static createOrShow(
@@ -60,6 +61,12 @@ export class GitDiffView extends Disposable {
 		);
 		this.filePath = filePath;
 		this.refreshViewContent();
+		this.repoPath =
+			vscode.workspace &&
+			vscode.workspace.workspaceFolders &&
+			vscode.workspace.workspaceFolders[0]
+				? vscode.workspace.workspaceFolders[0].uri.fsPath
+				: '';
 
 		// refresh diff view when file changed
 		vscode.workspace.onDidSaveTextDocument(async ({ uri }) => {
@@ -96,25 +103,79 @@ export class GitDiffView extends Disposable {
 			this.panel
 		);
 
-		this.panel.webview.onDidReceiveMessage(
-			(message) => {
-				switch (message.command) {
-					case 'showErrorMessage':
-						vscode.window.showErrorMessage(message.message);
-						return;
-					case 'showMessage':
-						vscode.window.showInformationMessage(message.message);
-						return;
-					case 'openFile':
-						vscode.window.showInformationMessage('todo:openFile');
-						return;
-					case 'revertFile':
-						vscode.window.showInformationMessage('todo:revertFile');
-						return;
-				}
-			},
-			undefined
-		);
+		this.panel.webview.onDidReceiveMessage((message) => {
+			switch (message.command) {
+				case 'showErrorMessage':
+					vscode.window.showErrorMessage(message.message);
+					return;
+				case 'showMessage':
+					vscode.window.showInformationMessage(message.message);
+					return;
+				case 'openFile':
+					if (message.fileState !== 'D') {
+						this.openFile(message.fileRelativePath);
+					} else {
+						vscode.window.showErrorMessage(
+							'The file has been deleted'
+						);
+					}
+					return;
+				case 'revertFile':
+					this.revertFile(message.fileRelativePath, true);
+					return;
+				case 'copeFilePath':
+					this.copyFilePath(message.fileRelativePath);
+					return;
+				case 'refresh':
+					this.refreshViewContent();
+					return;
+			}
+		}, undefined);
+	}
+
+	private copyFilePath(path: string) {
+		// TODO doesn't work
+		const filePath = this.getAbsolutePath(path);
+		vscode.env.clipboard.writeText(filePath);
+	}
+
+	private openFile(path: string) {
+		const filePath = vscode.Uri.file(this.getAbsolutePath(path));
+		vscode.workspace.openTextDocument(filePath).then((doc) => {
+			vscode.window.showTextDocument(doc);
+		});
+	}
+
+	private revertFile(path: string, withWarning:boolean) {
+		const filePath = this.getAbsolutePath(path);
+		const revertFileAction = () => {
+			const cmd = 'cd ' + this.repoPath + '; git restore ' + filePath;
+			execShell(cmd).then((stdout) => {
+				this.logger.appendLine('file reverted' + stdout + withWarning);
+				this.refreshViewContent();
+			}, error => {
+				vscode.window.showErrorMessage(error);
+			});
+		};
+		if (withWarning) {
+			vscode.window
+				.showInformationMessage(
+					'Do you want to revert selected file?' + path,
+					'Yes',
+					'No'
+				)
+				.then((answer) => {
+					if (answer === 'Yes') {
+						revertFileAction();
+					}
+				});
+		} else {
+			revertFileAction();
+		}
+	}
+
+	private getAbsolutePath(path: string) {
+		return this.repoPath + '/' + path;
 	}
 
 	private refreshViewContent() {
@@ -145,25 +206,45 @@ export class GitDiffView extends Disposable {
 			`">
 			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/styles/github.min.css" />
 			<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
+			<style>
+				.custom-git-btn{
+					margin-right:5px;
+					margin-left:2px;
+					height:15px;
+					font-size:8px;
+				}
+			</style>
 			<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
 			<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 			<script nonce="${nonce}">
 				const _vscodeApi = acquireVsCodeApi();
 				jQuery(function() {
-					_vscodeApi.postMessage({command: 'showMessage', message:'start'});
 					jQuery('#git-diff-body').on('click','.custom-git-btn',function(evt){
 						_vscodeApi.postMessage(jQuery(this).data());
 					});
-					_vscodeApi.postMessage({command: 'showMessage', message:'end'});
+
+					jQuery('.d2h-file-name-wrapper').each(function(){
+						const relativeFilePath = jQuery(this).find('.d2h-file-name').html();
+						var fileState = '';
+
+						if(jQuery(this).find('.d2h-deleted').length){
+							fileState = 'D';
+						}else if(jQuery(this).find('.d2h-changed').length){
+							fileState = 'C'
+						}else if(jQuery(this).find('.d2h-added').length){
+							fileState = 'A'
+						}
+
+						jQuery(this).prepend('<button class="custom-git-btn" data-command="openFile" title="open file" data-file-relative-path="'+relativeFilePath+'" data-file-state = "'+fileState+'" >O</button>');
+						jQuery(this).prepend('<button class="custom-git-btn" data-command="revertFile" title="revert file" data-file-relative-path="'+relativeFilePath+'" data-file-state = "'+fileState+'" >R</button>');
+					});
+
 				});
 			</script>
 		</head>
 		<body style="position:inherit" id="git-diff-body">
 			<div>
-				<button class="custom-git-btn" data-command="showMessage" data-message="Normal Message">Show message</button>
-				<button class="custom-git-btn" data-command="showErrorMessage" data-message="Error Msg">Show Error Message</button>
-				<button class="custom-git-btn" data-command="openFile">Open File</button>
-				<button class="custom-git-btn" data-command="revertFile">Revert File</button>
+				<button class="custom-git-btn" data-command="refresh">Refresh</button>
 			</div>
 			<div id="app">
 				${html(diffContent)}
