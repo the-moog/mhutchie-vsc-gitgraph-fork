@@ -54,7 +54,8 @@ export class GitDiffView extends Disposable {
 			{
 				enableScripts: true,
 				localResourceRoots: [
-					vscode.Uri.file(path.join(extensionPath, 'media'))
+					vscode.Uri.file(path.join(extensionPath, 'media')),
+					vscode.Uri.file(path.join(extensionPath, 'resources'))
 				]
 			}
 		);
@@ -205,11 +206,9 @@ export class GitDiffView extends Disposable {
 			<meta charset="UTF-8">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
 			<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-			<link rel="stylesheet" type="text/css" href="` +
-			this.getMediaUri('out.min.css') +
-			`">
-			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/styles/github.min.css" />
-			<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
+			<link rel="stylesheet" type="text/css" href="${this.getMediaUri('out.min.css')}">
+			<link rel="stylesheet" href="${this.getResourcesUri('highlight_11.6.0_github.min.css')}" />
+			<link rel="stylesheet" type="text/css" href="${this.getResourcesUri('diff2html.min.css')}" />
 			<style>
 				.custom-git-btn{
 					margin-right:5px;
@@ -218,17 +217,15 @@ export class GitDiffView extends Disposable {
 					font-size:8px;
 				}
 			</style>
-			<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
-			<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+			<script type="text/javascript" src="${this.getResourcesUri('diff2html-ui.min.js')}"></script>
+			<script src="${this.getResourcesUri('jquery.min.js')}"></script>
 			<script nonce="${nonce}">
 				const _vscodeApi = acquireVsCodeApi();
 				jQuery(function() {
 					jQuery('#git-diff-body').on('click','.custom-git-btn',function(evt){
 						_vscodeApi.postMessage(jQuery(this).data());
 					});
-					const diffContent = \`` +
-			diffContent +
-			`\`;
+					const diffContent = \`${diffContent}\`;
 					const configuration = {
 						drawFileList: true,
 						fileListToggle: true,
@@ -285,7 +282,7 @@ export class GitDiffView extends Disposable {
 	}
 
 	private getResourcesUri(file: string) {
-		return this.getUri('resources', file);
+		return this.panel.webview.asWebviewUri(this.getUri('resources', file));
 	}
 
 	private getUri(...pathComps: string[]) {
