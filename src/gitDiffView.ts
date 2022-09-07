@@ -197,8 +197,7 @@ export class GitDiffView extends Disposable {
 	private getHtmlForWebview(diffContent: string): string {
 		const nonce = getNonce();
 
-		return (
-			/* html */ `
+		return /* html */ `
 		<!DOCTYPE html>
 		<html lang="en" id="diff-2-html">
 		<head>
@@ -225,7 +224,7 @@ export class GitDiffView extends Disposable {
 					jQuery('#git-diff-body').on('click','.custom-git-btn',function(evt){
 						_vscodeApi.postMessage(jQuery(this).data());
 					});
-					const diffContent = \`${diffContent}\`;
+					const diffContent = \`${this.getEscapedDiffContent(diffContent)}\`;
 					const configuration = {
 						drawFileList: true,
 						fileListToggle: true,
@@ -272,11 +271,13 @@ export class GitDiffView extends Disposable {
 				${this.gitCmd};
 			</div>
 		</body>
-		</html>`
-		);
+		</html>`;
+	}
+
+	private getEscapedDiffContent(diff:string):string {
+		return diff.replace(/[\\`\$]/g, '\\$&');
 	}
 	/* URI Manipulation Methods */
-
 	private getMediaUri(file: string) {
 		return this.panel.webview.asWebviewUri(this.getUri('media', file));
 	}
