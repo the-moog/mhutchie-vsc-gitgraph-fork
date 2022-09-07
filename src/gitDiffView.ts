@@ -1,6 +1,5 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { html } from 'diff2html';
 import { Disposable, toDisposable } from './utils/disposable';
 import { execShell, getNonce } from './utils';
 /**
@@ -146,16 +145,21 @@ export class GitDiffView extends Disposable {
 		});
 	}
 
-	private revertFile(path: string, withWarning:boolean) {
+	private revertFile(path: string, withWarning: boolean) {
 		const filePath = this.getAbsolutePath(path);
 		const revertFileAction = () => {
 			const cmd = 'cd ' + this.repoPath + '; git restore ' + filePath;
-			execShell(cmd).then((stdout) => {
-				this.logger.appendLine('file reverted' + stdout + withWarning);
-				this.refreshViewContent();
-			}, error => {
-				vscode.window.showErrorMessage(error);
-			});
+			execShell(cmd).then(
+				(stdout) => {
+					this.logger.appendLine(
+						'file reverted' + stdout + withWarning
+					);
+					this.refreshViewContent();
+				},
+				(error) => {
+					vscode.window.showErrorMessage(error);
+				}
+			);
 		};
 		if (withWarning) {
 			vscode.window
@@ -222,6 +226,24 @@ export class GitDiffView extends Disposable {
 					jQuery('#git-diff-body').on('click','.custom-git-btn',function(evt){
 						_vscodeApi.postMessage(jQuery(this).data());
 					});
+					const diffContent = \`` +
+			diffContent +
+			`\`;
+					const configuration = {
+						drawFileList: true,
+						fileListToggle: true,
+						fileListStartVisible: false,
+						fileContentToggle: true,
+						matching: 'lines',
+						outputFormat: 'line-by-line',
+						synchronisedScroll: true,
+						highlight: true,
+						renderNothingWhenEmpty: false,
+					};
+
+					const diff2htmlUi = new Diff2HtmlUI(jQuery('#app')[0], diffContent, configuration);
+					diff2htmlUi.draw();
+					diff2htmlUi.highlightCode();
 
 					jQuery('.d2h-file-name-wrapper').each(function(){
 						const relativeFilePath = jQuery(this).find('.d2h-file-name').html();
@@ -246,10 +268,7 @@ export class GitDiffView extends Disposable {
 			<div>
 				<button class="custom-git-btn" data-command="refresh">Refresh</button>
 			</div>
-			<div id="app">
-				${html(diffContent)}
-			</div>
-
+			<div id="app"></div>
 			<div>
 				<hr/><br/>
 				<b>The cmd use to generate this is:</b><br/>
@@ -261,20 +280,14 @@ export class GitDiffView extends Disposable {
 	}
 	/* URI Manipulation Methods */
 
-	/**
-	 * Get a WebviewUri for a media file included in the extension.
-	 * @param file The file name in the `media` directory.
-	 * @returns The WebviewUri.
-	 */
 	private getMediaUri(file: string) {
 		return this.panel.webview.asWebviewUri(this.getUri('media', file));
 	}
 
-	/**
-	 * Get a File Uri for a file included in the extension.
-	 * @param pathComps The path components relative to the root directory of the extension.
-	 * @returns The File Uri.
-	 */
+	private getResourcesUri(file: string) {
+		return this.getUri('resources', file);
+	}
+
 	private getUri(...pathComps: string[]) {
 		return vscode.Uri.file(path.join(this.extensionPath, ...pathComps));
 	}
