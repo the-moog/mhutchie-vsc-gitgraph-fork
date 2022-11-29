@@ -197,7 +197,7 @@ export class GitDiffView extends Disposable {
 	 */
 	private getHtmlForWebview(diffContent: string): string {
 		const nonce = getNonce();
-
+		this.logger.appendLine(`handle ${this.escapedStr} automatically`);
 		return /* html */ `
 		<!DOCTYPE html>
 		<html lang="en" id="diff-2-html">
@@ -221,6 +221,7 @@ export class GitDiffView extends Disposable {
 			<script src="${this.getResourcesUri('jquery.min.js')}"></script>
 			<script nonce="${nonce}">
 				const _vscodeApi = acquireVsCodeApi();
+				let escapedStr = '${this.escapedStr}'
 				jQuery(function() {
 					jQuery('#git-diff-body').on('click','.custom-git-btn',function(evt){
 						_vscodeApi.postMessage(jQuery(this).data());
@@ -277,7 +278,7 @@ export class GitDiffView extends Disposable {
 
 	private getEscapedDiffContent(diff:string):string {
 		diff = diff.replace(/[\\`\$]/g, '\\$&');
-		diff = diff.replace(/</g, '${this.escapedStr}');
+		diff = diff.replace(/</g, '${escapedStr}');
 		return diff;
 	}
 	/* URI Manipulation Methods */
