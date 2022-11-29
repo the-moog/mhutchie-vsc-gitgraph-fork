@@ -15,6 +15,7 @@ export class GitDiffView extends Disposable {
 	private logger = vscode.window.createOutputChannel('gitDiffBySW');
 	private repoPath: string;
 	private filePath: string;
+	private escapedStr = '<';
 
 	public static createOrShow(
 		extensionPath: string,
@@ -275,7 +276,9 @@ export class GitDiffView extends Disposable {
 	}
 
 	private getEscapedDiffContent(diff:string):string {
-		return diff.replace(/[\\`\$]/g, '\\$&');
+		diff = diff.replace(/[\\`\$]/g, '\\$&');
+		diff = diff.replace(/</g, '${this.escapedStr}');
+		return diff;
 	}
 	/* URI Manipulation Methods */
 	private getMediaUri(file: string) {
