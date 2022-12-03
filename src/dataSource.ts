@@ -7,7 +7,7 @@ import { AskpassEnvironment, AskpassManager } from './askpass/askpassManager';
 import { getConfig } from './config';
 import { Logger } from './logger';
 import { CommitOrdering, DateType, DeepWriteable, ErrorInfo, ErrorInfoExtensionPrefix, GitCommit, GitCommitDetails, GitCommitStash, GitConfigLocation, GitFileChange, GitFileStatus, GitPushBranchMode, GitRepoConfig, GitRepoConfigBranches, GitResetMode, GitSignature, GitSignatureStatus, GitStash, GitTagDetails, MergeActionOn, RebaseActionOn, SquashMessageFormat, TagType, Writeable } from './types';
-import { GitExecutable, GitVersionRequirement, UNABLE_TO_FIND_GIT_MSG, UNCOMMITTED, abbrevCommit, constructIncompatibleGitVersionMessage, doesVersionMeetRequirement, getPathFromStr, getPathFromUri, openGitTerminal, pathWithTrailingSlash, realpath, resolveSpawnOutput, showErrorMessage } from './utils';
+import { GitExecutable, GitVersionRequirement, UNABLE_TO_FIND_GIT_MSG, UNABLE_TO_FIND_LFS_MSG as UNABLE_TO_FIND_LFS_MSG, UNCOMMITTED, abbrevCommit, constructIncompatibleGitVersionMessage, doesVersionMeetRequirement, getPathFromStr, getPathFromUri, openGitTerminal, pathWithTrailingSlash, realpath, resolveSpawnOutput, showErrorMessage, showWarningMessage } from './utils';
 import { Disposable } from './utils/disposable';
 import { Event } from './utils/event';
 
@@ -16,6 +16,7 @@ const EOL_REGEX = /\r\n|\r|\n/g;
 const INVALID_BRANCH_REGEXP = /^\(.* .*\)$/;
 const REMOTE_HEAD_BRANCH_REGEXP = /^remotes\/.*\/HEAD$/;
 const GIT_LOG_SEPARATOR = 'XX7Nal-YARtTpjCikii9nJxER19D6diSyk-AWkPb';
+const GIT_LFS_POINTER_SPEC = 'version https://git-lfs.github.com/spec/v1';
 
 export const enum GitConfigKey {
 	DiffGuiTool = 'diff.guitool',
@@ -471,16 +472,17 @@ export class DataSource extends Disposable {
 		 * 2. if file is not LFS pointer (not starting with LFS specifier), return what you have
 		 * 3. else return result of `git lfs smudge` by putting the readout as stdin
 		 */
-		const show = this._spawnGit(['show', commitHash + ':' + filePath], repo, stdout => {
+		return (this._spawnGit(['show', commitHash + ':' + filePath], repo, stdout => {
 			const encoding = getConfig(repo).fileEncoding;
 			return decode(stdout, encodingExists(encoding) ? encoding : 'utf8');
-		});
-
-		return (show.then((contents) => {
-			let isLfs = contents.startsWith('version https://git-lfs.github.com/spec/v1');
-			this.logger.log('sw ' + isLfs);
-			if (isLfs) {
-				this.logger.log('show is lfs');
+		}).then((contents) => {
+			let isLfs = contents.startsWith(GIT_LFS_POINTER_SPEC);
+			this.logger.log('is LFS? ' + isLfs);
+			if (!isLfs) {
+				// For regular file return already read contents
+				return contents;
+			} else {
+				// For LFS file read pointer and pipe to `git lfs smudge`
 				/**
 				 * Simplest way would be to pipe `contents` to STDIN and run `git lfs smudge`
 				 * `echo contents | git lfs smudge`
@@ -533,12 +535,10 @@ export class DataSource extends Disposable {
 							/* STDERR */
 							let mystderr = '';
 							mycp.stderr.on('data', (d) => {
-								this.logger.log('appending error');
 								mystderr += d;
 							});
 							mycp.stderr.on('close', () => {
-								this.logger.log('stderr closing');
-								// resolve(mystderr);
+								this.logger.log('stderr closing: ' + mystderr);
 							});
 
 							/* STDIN - write previous command STDOUT to this STDIN */
@@ -550,13 +550,19 @@ export class DataSource extends Disposable {
 								reject(error);
 							});
 							mycp.on('exit', (code) => {
-								this.logger.log('exit: ' + code);
-								if (code !== 0) {
+								this.logger.log('exit code: ' + code);
+								if (code === 1) {
+									/* LFS is not installed, resolve with original file readout and emit warning notification */
+									showWarningMessage(UNABLE_TO_FIND_LFS_MSG);
+									this.logger.log('readout: ' + contents);
+									resolve(contents);
+								} else if (code !== 0) {
 									reject(getErrorMessage(status.error, Buffer.concat(buff), mystderr));
 								}
+								/* else, stdout.on('close' should resolve with smudged file? */
 							});
 
-							this.logger.logCmd('git', args);
+							this.logger.logCmd('| git', args);
 						} else {
 							reject(getErrorMessage(status.error, stdout, stderr));
 						}
@@ -564,9 +570,6 @@ export class DataSource extends Disposable {
 
 					this.logger.logCmd('git', args);
 				});
-			} else {
-				this.logger.log('regular');
-				return show;
 			}
 		}));
 	}
