@@ -443,10 +443,132 @@ export class DataSource extends Disposable {
 	 * @returns The file contents.
 	 */
 	public getCommitFile(repo: string, commitHash: string, filePath: string) {
-		return this._spawnGit(['show', commitHash + ':' + filePath], repo, stdout => {
+		/* Support LFS files */
+		/* IDEA 1 (source: https://github.com/git-lfs/git-lfs/issues/2498#issuecomment-389722934):
+		 * Run something like following script.  Remember to prefetch revisions to local store first though!
+		 *
+		 *     oid_to_path() {
+		 *     local oid="$1"
+		 *     local dir="$(git lfs env | grep LocalMediaDir | cut -d '=' -f 2)"
+		 *
+		 *     echo "$dir/${oid:0:2}/${oid:2:2}/$oid"
+		 *     }
+		 *
+		 *     rev1="$(git rev-parse "$1")"
+		 *     rev2="$(git rev-parse "$2")"
+		 *     fname="$3"
+		 *
+		 *     oid1="$(git cat-file -p "$rev1":"$fname" | grep oid | cut -d ':' -f 2)"
+		 *     oid2="$(git cat-file -p "$rev2":"$fname" | grep oid | cut -d ':' -f 2)"
+		 *
+		 *     path1="$(oid_to_path "$oid1")"
+		 *     path2="$(oid_to_path "$oid2")"
+		 *
+		 *     diff -U "$path1" "$path2"
+		 */
+		/* IDEA 2 (better) - use `git lfs smudge` (Read a Git LFS pointer file from standard input and write the contents of the corresponding large file to standard output.)
+		 * 1. read file, as orginally.
+		 * 2. if file is not LFS pointer (not starting with LFS specifier), return what you have
+		 * 3. else return result of `git lfs smudge` by putting the readout as stdin
+		 */
+		const show = this._spawnGit(['show', commitHash + ':' + filePath], repo, stdout => {
 			const encoding = getConfig(repo).fileEncoding;
 			return decode(stdout, encodingExists(encoding) ? encoding : 'utf8');
 		});
+
+		return (show.then((contents) => {
+			let isLfs = contents.startsWith('version https://git-lfs.github.com/spec/v1');
+			this.logger.log('sw ' + isLfs);
+			if (isLfs) {
+				this.logger.log('show is lfs');
+				/**
+				 * Simplest way would be to pipe `contents` to STDIN and run `git lfs smudge`
+				 * `echo contents | git lfs smudge`
+				 * Because this would require some trickery to do, do even more trickery by using args as command call
+				 * `git cat-file blob commitHash:filePath | git lfs smudge
+				 */
+
+				// return this._spawnGit(['cat-file', 'blob', commitHash + ':' + filePath], repo, stdout => {
+				// 	const encoding = getConfig(repo).fileEncoding;
+				// 	/* call another command with piped output from first call */
+				// 	this.logger.log(stdout.pipe(cp.spawn('git', ['lfs', 'smudge'])));
+				// });
+
+				return new Promise<string>((resolve, reject) => {
+					if (this.gitExecutable === null) {
+						return reject(UNABLE_TO_FIND_GIT_MSG);
+					}
+
+					const command = this.gitExecutable.path;
+					const args = ['cat-file', 'blob', commitHash + ':' + filePath];
+
+					resolveSpawnOutput(cp.spawn(this.gitExecutable.path, args, {
+						cwd: repo,
+						env: Object.assign({}, process.env, this.askpassEnv)
+					})).then((values) => {
+						const status = values[0], stdout = values[1], stderr = values[2];
+						if (status.code === 0) {
+							/* Run `git lfs smudge` taking stdout as stdin */
+
+							this.logger.log('Attempting to smudge with ' + command);
+
+							const args = ['lfs', 'smudge'];
+
+							let mycp = cp.spawn(command, args, {
+								cwd: repo,
+								env: Object.assign({}, process.env, this.askpassEnv)
+							});
+
+							/* STDOUT */
+							let buff: Buffer[] = [];
+							mycp.stdout.on('data', (b: Buffer) => {
+								this.logger.log('appending');
+								buff.push(b);
+							});
+							mycp.stdout.on('close', () => {
+								this.logger.log('closing');
+								resolve(Buffer.concat(buff).toString());
+							});
+
+							/* STDERR */
+							let mystderr = '';
+							mycp.stderr.on('data', (d) => {
+								this.logger.log('appending error');
+								mystderr += d;
+							});
+							mycp.stderr.on('close', () => {
+								this.logger.log('stderr closing');
+								// resolve(mystderr);
+							});
+
+							/* STDIN - write previous command STDOUT to this STDIN */
+							mycp.stdin.write(stdout);
+
+							/* END */
+							mycp.on('error', (error) => {
+								this.logger.log('error: ' + error);
+								reject(error);
+							});
+							mycp.on('exit', (code) => {
+								this.logger.log('exit: ' + code);
+								if (code !== 0) {
+									reject(getErrorMessage(status.error, Buffer.concat(buff), mystderr));
+								}
+							});
+
+							this.logger.logCmd('git', args);
+						} else {
+							reject(getErrorMessage(status.error, stdout, stderr));
+						}
+					});
+
+					this.logger.logCmd('git', args);
+				});
+			} else {
+				this.logger.log('regular');
+				return show;
+			}
+		}));
 	}
 
 
