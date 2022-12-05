@@ -451,25 +451,22 @@ export class DataSource extends Disposable {
 			// Support LFS files
 			let isLfs = contents.startsWith(GIT_LFS_POINTER_SPEC);
 			this.logger.log('is LFS? ' + isLfs);
-			
+
 			if (!isLfs) {
 				// For regular file return already read contents
 				return contents;
 			} else {
 				// For LFS file read pointer and pipe to `git lfs smudge`
 				// Consider `echo contents | git lfs smudge`
-				
+
 				/* Run `git lfs smudge` taking stdout as stdin */
 				this.logger.log('Attempting to smudge');
-				return this._spawnGitPipe(contents, ['lfs', 'smudge'], repo, stdout =>
-				{
+				return this._spawnGitPipe(contents, ['lfs', 'smudge'], repo, stdout => {
 					const encoding = getConfig(repo).fileEncoding;
 					return decode(stdout, encodingExists(encoding) ? encoding : 'utf8');
 				}).then((lfsContents) => {
 					return lfsContents;
 				});
-				
-
 			}
 		}));
 	}
@@ -1879,10 +1876,6 @@ export class DataSource extends Disposable {
 				this.logger.log('appending');
 				buff.push(b);
 			});
-			lfs_cmd.stdout.on('close', () => {
-				this.logger.log('closing');
-				resolve(resolveValue(Buffer.concat(buff), stderr));
-			});
 
 			/* STDERR */
 			let stderr = '';
@@ -1903,15 +1896,16 @@ export class DataSource extends Disposable {
 			});
 			lfs_cmd.on('exit', (code) => {
 				this.logger.log('exit code: ' + code);
-				if (code === 1) {
+				if (code === 0 || ignoreExitCode) {
+					resolve(resolveValue(Buffer.concat(buff), stderr));
+				} else if (code === 1) {
 					/* LFS is not installed, resolve with original file readout and emit warning notification */
 					showWarningMessage(UNABLE_TO_FIND_LFS_MSG);
 					this.logger.log('readout: ' + stdin);
 					resolve(resolveValue(Buffer.from(stdin), stderr));
-				} else if ((code !== 0) && (!ignoreExitCode)) {
+				} else {
 					reject(getErrorMessage(null, Buffer.concat(buff), stderr));
 				}
-				/* else, stdout.on('close' should resolve with smudged file? */
 			});
 
 			this.logger.logCmd('| git', args);
