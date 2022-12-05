@@ -444,78 +444,32 @@ export class DataSource extends Disposable {
 	 * @returns The file contents.
 	 */
 	public getCommitFile(repo: string, commitHash: string, filePath: string) {
-		// Support LFS files
 		return (this._spawnGit(['show', commitHash + ':' + filePath], repo, stdout => {
 			const encoding = getConfig(repo).fileEncoding;
 			return decode(stdout, encodingExists(encoding) ? encoding : 'utf8');
 		}).then((contents) => {
+			// Support LFS files
 			let isLfs = contents.startsWith(GIT_LFS_POINTER_SPEC);
 			this.logger.log('is LFS? ' + isLfs);
+			
 			if (!isLfs) {
 				// For regular file return already read contents
 				return contents;
 			} else {
 				// For LFS file read pointer and pipe to `git lfs smudge`
 				// Consider `echo contents | git lfs smudge`
-
-				return new Promise<string>((resolve, reject) => {
-					if (this.gitExecutable === null) {
-						return reject(UNABLE_TO_FIND_GIT_MSG);
-					}
-
-					/* Run `git lfs smudge` taking stdout as stdin */
-					this.logger.log('Attempting to smudge');
-
-					const args = ['lfs', 'smudge'];
-
-					let mycp = cp.spawn(this.gitExecutable.path, args, {
-						cwd: repo,
-						env: Object.assign({}, process.env, this.askpassEnv)
-					});
-
-					/* STDOUT */
-					let buff: Buffer[] = [];
-					mycp.stdout.on('data', (b: Buffer) => {
-						this.logger.log('appending');
-						buff.push(b);
-					});
-					mycp.stdout.on('close', () => {
-						this.logger.log('closing');
-						resolve(Buffer.concat(buff).toString());
-					});
-
-					/* STDERR */
-					let mystderr = '';
-					mycp.stderr.on('data', (d) => {
-						mystderr += d;
-					});
-					mycp.stderr.on('close', () => {
-						this.logger.log('stderr closing: ' + mystderr);
-					});
-
-					/* STDIN - write previous command STDOUT to this STDIN */
-					mycp.stdin.write(contents);
-
-					/* END */
-					mycp.on('error', (error) => {
-						this.logger.log('error: ' + error);
-						reject(error);
-					});
-					mycp.on('exit', (code) => {
-						this.logger.log('exit code: ' + code);
-						if (code === 1) {
-							/* LFS is not installed, resolve with original file readout and emit warning notification */
-							showWarningMessage(UNABLE_TO_FIND_LFS_MSG);
-							this.logger.log('readout: ' + contents);
-							resolve(contents);
-						} else if (code !== 0) {
-							reject(getErrorMessage(null, Buffer.concat(buff), mystderr));
-						}
-						/* else, stdout.on('close' should resolve with smudged file? */
-					});
-
-					this.logger.logCmd('| git', args);
+				
+				/* Run `git lfs smudge` taking stdout as stdin */
+				this.logger.log('Attempting to smudge');
+				return this._spawnGitPipe(contents, ['lfs', 'smudge'], repo, stdout =>
+				{
+					const encoding = getConfig(repo).fileEncoding;
+					return decode(stdout, encodingExists(encoding) ? encoding : 'utf8');
+				}).then((lfsContents) => {
+					return lfsContents;
 				});
+				
+
 			}
 		}));
 	}
@@ -1905,6 +1859,62 @@ export class DataSource extends Disposable {
 			});
 
 			this.logger.logCmd('git', args);
+		});
+	}
+
+	private _spawnGitPipe<T>(stdin: string, args: string[], repo: string, resolveValue: { (stdout: Buffer, stderr: string): T }, ignoreExitCode: boolean = false) {
+		return new Promise<T>((resolve, reject) => {
+			if (this.gitExecutable === null) {
+				return reject(UNABLE_TO_FIND_GIT_MSG);
+			}
+
+			let lfs_cmd = cp.spawn(this.gitExecutable.path, args, {
+				cwd: repo,
+				env: Object.assign({}, process.env, this.askpassEnv)
+			});
+
+			/* STDOUT */
+			let buff: Buffer[] = [];
+			lfs_cmd.stdout.on('data', (b: Buffer) => {
+				this.logger.log('appending');
+				buff.push(b);
+			});
+			lfs_cmd.stdout.on('close', () => {
+				this.logger.log('closing');
+				resolve(resolveValue(Buffer.concat(buff), stderr));
+			});
+
+			/* STDERR */
+			let stderr = '';
+			lfs_cmd.stderr.on('data', (d) => {
+				stderr += d;
+			});
+			lfs_cmd.stderr.on('close', () => {
+				this.logger.log('stderr closing: ' + stderr);
+			});
+
+			/* STDIN - write previous command STDOUT to this STDIN */
+			lfs_cmd.stdin.write(stdin);
+
+			/* END */
+			lfs_cmd.on('error', (error) => {
+				this.logger.log('error: ' + error);
+				reject(error);
+			});
+			lfs_cmd.on('exit', (code) => {
+				this.logger.log('exit code: ' + code);
+				if (code === 1) {
+					/* LFS is not installed, resolve with original file readout and emit warning notification */
+					showWarningMessage(UNABLE_TO_FIND_LFS_MSG);
+					this.logger.log('readout: ' + stdin);
+					resolve(resolveValue(Buffer.from(stdin), stderr));
+				} else if ((code !== 0) && (!ignoreExitCode)) {
+					reject(getErrorMessage(null, Buffer.concat(buff), stderr));
+				}
+				/* else, stdout.on('close' should resolve with smudged file? */
+			});
+
+			this.logger.logCmd('| git', args);
 		});
 	}
 }
