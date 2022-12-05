@@ -1870,41 +1870,20 @@ export class DataSource extends Disposable {
 				env: Object.assign({}, process.env, this.askpassEnv)
 			});
 
-			/* STDOUT */
-			let buff: Buffer[] = [];
-			lfs_cmd.stdout.on('data', (b: Buffer) => {
-				this.logger.log('appending');
-				buff.push(b);
-			});
-
-			/* STDERR */
-			let stderr = '';
-			lfs_cmd.stderr.on('data', (d) => {
-				stderr += d;
-			});
-			lfs_cmd.stderr.on('close', () => {
-				this.logger.log('stderr closing: ' + stderr);
-			});
-
 			/* STDIN - write previous command STDOUT to this STDIN */
 			lfs_cmd.stdin.write(stdin);
 
-			/* END */
-			lfs_cmd.on('error', (error) => {
-				this.logger.log('error: ' + error);
-				reject(error);
-			});
-			lfs_cmd.on('exit', (code) => {
-				this.logger.log('exit code: ' + code);
-				if (code === 0 || ignoreExitCode) {
-					resolve(resolveValue(Buffer.concat(buff), stderr));
-				} else if (code === 1) {
+			resolveSpawnOutput(lfs_cmd).then((values) => {
+				const status = values[0], stdout = values[1], stderr = values[2];
+				if (status.code === 0 || ignoreExitCode) {
+					resolve(resolveValue(stdout, stderr));
+				} else if (status.code === 1) {
 					/* LFS is not installed, resolve with original file readout and emit warning notification */
 					showWarningMessage(UNABLE_TO_FIND_LFS_MSG);
 					this.logger.log('readout: ' + stdin);
 					resolve(resolveValue(Buffer.from(stdin), stderr));
 				} else {
-					reject(getErrorMessage(null, Buffer.concat(buff), stderr));
+					reject(getErrorMessage(null, stdout, stderr));
 				}
 			});
 

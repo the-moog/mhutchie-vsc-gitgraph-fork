@@ -10,7 +10,7 @@ import { ErrorInfo, GitFileStatus, GitRepoSet, PullRequestConfig, PullRequestPro
 
 export const UNCOMMITTED = '*';
 export const UNABLE_TO_FIND_GIT_MSG = 'Unable to find a Git executable. Either: Set the Visual Studio Code Setting "git.path" to the path and filename of an existing Git executable, or install Git and restart Visual Studio Code.';
-export const UNABLE_TO_FIND_LFS_MSG = 'Git LFS is not installed. Please install Git LFS to view LFS files. Showing LFS pointer file contents instead.';
+export const UNABLE_TO_FIND_LFS_MSG = 'Git LFS is not installed. Please install Git LFS to view real file contents. Showing LFS pointer file contents instead.';
 
 
 /* Path Manipulation */
