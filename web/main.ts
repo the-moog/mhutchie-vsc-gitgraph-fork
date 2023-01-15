@@ -2830,7 +2830,8 @@ class GitGraphView {
 
 		const processDraggingCdvDivider: EventListener = (e) => {
 			if (minX < 0) return;
-			if((<MouseEvent>e).clientX < this.gitRepos[this.currentRepo].columnWidths![0] + 24)return;
+			if((<MouseEvent>e).clientX < this.gitRepos[this.currentRepo].columnWidths![0] + 24 && !this.isCdvDocked())return;
+			if((<MouseEvent>e).clientX < 16 && this.isCdvDocked())return;
 			let percent = ((<MouseEvent>e).clientX - minX) / width;
 			if (!this.gitRepos[this.currentRepo].isCdvSummaryHidden && percent < 0.2) percent = 0.2;
 			if (percent > 0.8) percent = 0.8;
@@ -2936,11 +2937,11 @@ class GitGraphView {
 			cdvSummary!.classList.add('hidden');
 			btn!.classList.add('expandBtn');
 			let newWindowWidth = this.gitRepos[this.currentRepo].cdvFilesWidth + document.getElementById('cdvControls')!.offsetWidth;
-			if(newWindowWidth > inlineWindowWidth) {
-				newWindowWidth = inlineWindowWidth;
-				this.gitRepos[this.currentRepo].cdvFilesWidth = inlineWindowWidth - document.getElementById('cdvControls')!.offsetWidth;
-			}
 			if(!this.isCdvDocked()) {
+				if(newWindowWidth > inlineWindowWidth) {
+					newWindowWidth = inlineWindowWidth;
+					this.gitRepos[this.currentRepo].cdvFilesWidth = inlineWindowWidth - document.getElementById('cdvControls')!.offsetWidth;
+				}
 				inlineWindow!.style.width = newWindowWidth + 'px';
 		 		inlineWindow!.style.right = -(inlineWindowWidth) + 'px';
 			} else if(this.isCdvDocked()) {
