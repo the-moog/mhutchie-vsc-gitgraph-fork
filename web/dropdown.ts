@@ -94,15 +94,17 @@ class Dropdown {
 	 * @param options An array of the options to display in the dropdown.
 	 * @param optionsSelected An array of the selected options in the dropdown.
 	 */
-	public setOptions(options: ReadonlyArray<DropdownOption>, optionsSelected: string[]) {
+	public setOptions(options: ReadonlyArray<DropdownOption>, optionsSelected: string[]|null) {
 		this.options = options;
 		this.optionsSelected = [];
 		let selectedOption = -1, isSelected;
-		for (let i = 0; i < options.length; i++) {
-			isSelected = optionsSelected.includes(options[i].value);
-			this.optionsSelected[i] = isSelected;
-			if (isSelected) {
-				selectedOption = i;
+		if(optionsSelected) {
+			for (let i = 0; i < options.length; i++) {
+				isSelected = optionsSelected.includes(options[i].value);
+				this.optionsSelected[i] = isSelected;
+				if (isSelected) {
+					selectedOption = i;
+				}
 			}
 		}
 		if (selectedOption === -1) {

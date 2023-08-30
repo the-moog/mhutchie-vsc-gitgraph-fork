@@ -69,17 +69,6 @@ code{
 	cursor:col-resize;
 }
 
-#scrollShadow.active{
-	position:fixed;
-	top:0;
-	left:0;
-	right:0;
-	height:0;
-	box-shadow:0 -6px 6px 6px var(--vscode-scrollbar-shadow);
-	z-index:20;
-}
-
-
 /* Commit Graph */
 
 #commitGraph{
@@ -214,7 +203,8 @@ code{
 	padding:0 4px;
 }
 #commitTable th{
-	border-bottom:1px solid rgba(128,128,128,0.5);
+	border-bottom:1px solid transparent;
+	box-shadow: 0 1px 0 rgba(128,128,128,0.5);
 	line-height:18px;
 	padding:6px 12px;
 }
@@ -277,6 +267,12 @@ code{
 .tableColHeader{
 	position:relative;
 }
+#tableColHeaders.sticky .tableColHeader {
+	position: sticky;
+	top: inherit;
+	z-index: 11;
+	background-color: var(--vscode-editor-background);
+}
 .resizeCol{
 	position:absolute;
 	top:0;
@@ -287,10 +283,20 @@ code{
 }
 .resizeCol.left{
 	left:0;
-	border-left:1px solid rgba(128,128,128,0.25);
 }
 .resizeCol.right{
 	right:0;
+}
+
+table { border-collapse: collapse; }
+.commit>td, #tableColHeaders>th {
+  border-right: solid 1px rgba(128,128,128,0.25);
+}
+.commit>td{
+	position:relative;
+}
+#tableColHeaders>th:last-child, .commit>td:last-child {
+    border-right: none;
 }
 
 
@@ -342,6 +348,9 @@ code{
 }
 .cdvControlBtn.active:hover{
 	background-color:rgba(128,128,128,0.35);
+}
+.cdvFolderBtn.hidden{
+	display:none;
 }
 
 #cdvCodeReview{
@@ -776,11 +785,12 @@ body.tagLabelsRightAligned .gitRef.tag{
 
 #controls{
 	display:block;
-	position:relative;
+	position: relative;
 	left:0;
 	right:0;
 	top:0;
 	padding:4px 132px 4px 0;
+	background-color: var(--vscode-editor-background);
 	border-bottom:1px solid rgba(128,128,128,0.5);
 	line-height:32px;
 	text-align:center;
@@ -790,12 +800,17 @@ body.tagLabelsRightAligned .gitRef.tag{
 	user-select:none;
 }
 
+#controls.sticky {
+	position:sticky;
+	z-index:12;
+}
+
 #repoControl, #branchControl, #showRemoteBranchesControl{
 	display:inline-block;
 	white-space:nowrap;
 	margin:0 10px;
 }
-#repoDropdown, #branchDropdown{
+#repoDropdown, #branchDropdown #authorDropdown{
 	margin-left:3px;
 }
 #showRemoteBranchesControl > .customCheckbox{
@@ -812,7 +827,7 @@ body.tagLabelsRightAligned .gitRef.tag{
 	max-width:40vw;
 }
 
-#findBtn, #terminalBtn, #settingsBtn, #fetchBtn, #refreshBtn{
+#currentBtn, #findBtn, #terminalBtn, #settingsBtn, #fetchBtn, #refreshBtn{
 	position:absolute;
 	top:50%;
 	width:20px;
@@ -821,6 +836,9 @@ body.tagLabelsRightAligned .gitRef.tag{
 	cursor:pointer;
 	-webkit-user-select:none;
 	user-select:none;
+}
+#currentBtn{
+	right:130px;
 }
 #findBtn{
 	right:100px;
@@ -841,7 +859,7 @@ body.tagLabelsRightAligned .gitRef.tag{
 #refreshBtn.refreshing{
 	cursor:default;
 }
-#findBtn svg, #terminalBtn svg, #settingsBtn svg, #fetchBtn svg, #refreshBtn svg{
+#currentBtn svg, #findBtn svg, #terminalBtn svg, #settingsBtn svg, #fetchBtn svg, #refreshBtn svg{
 	position:absolute;
 	fill:var(--vscode-editor-foreground);
 	opacity:0.8;
@@ -849,17 +867,17 @@ body.tagLabelsRightAligned .gitRef.tag{
 	stroke-opacity:0.5;
 	stroke-width:0;
 }
-#findBtn svg, #terminalBtn svg{
+#currentBtn svg, #findBtn svg, #terminalBtn svg{
 	stroke-width:0.5px;
 }
-#findBtn:hover svg, #terminalBtn:hover svg, #settingsBtn:hover svg, #fetchBtn:hover svg, #refreshBtn:hover svg{
+#currentBtn:hover svg, #findBtn:hover svg, #terminalBtn:hover svg, #settingsBtn:hover svg, #fetchBtn:hover svg, #refreshBtn:hover svg{
 	opacity:1;
 	stroke-width:0.5px;
 }
-#findBtn:hover svg, #terminalBtn:hover svg{
+#currentBtn:hover svg, #findBtn:hover svg, #terminalBtn:hover svg{
 	stroke-width:1px;
 }
-#findBtn svg, #terminalBtn svg, #settingsBtn svg, #fetchBtn svg{
+#currentBtn svg, #findBtn svg, #terminalBtn svg, #settingsBtn svg, #fetchBtn svg{
 	left:1px;
 	top:1px;
 	width:18px !important;
@@ -881,6 +899,9 @@ body.tagLabelsRightAligned .gitRef.tag{
 
 #controls.fetchSupported{
 	padding-right:162px;
+}
+#controls.fetchSupported #currentBtn{
+	right:160px;
 }
 #controls.fetchSupported #findBtn{
 	right:130px;

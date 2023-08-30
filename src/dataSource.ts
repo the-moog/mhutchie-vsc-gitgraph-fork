@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import { AskpassEnvironment, AskpassManager } from './askpass/askpassManager';
 import { getConfig } from './config';
 import { Logger } from './logger';
-import { CommitOrdering, DateType, DeepWriteable, ErrorInfo, ErrorInfoExtensionPrefix, GitCommit, GitCommitDetails, GitCommitStash, GitConfigLocation, GitFileChange, GitFileStatus, GitPushBranchMode, GitRepoConfig, GitRepoConfigBranches, GitResetMode, GitSignature, GitSignatureStatus, GitStash, GitTagDetails, MergeActionOn, RebaseActionOn, SquashMessageFormat, TagType, Writeable } from './types';
+import {ActionedUser, CommitOrdering, DateType, DeepWriteable, ErrorInfo, ErrorInfoExtensionPrefix, GitCommit, GitCommitDetails, GitCommitStash, GitConfigLocation, GitFileChange, GitFileStatus, GitPushBranchMode, GitRepoConfig, GitRepoConfigBranches, GitResetMode, GitSignature, GitSignatureStatus, GitStash, GitTagDetails, MergeActionOn, RebaseActionOn, SquashMessageFormat, TagType, Writeable } from './types';
 import { GitExecutable, GitVersionRequirement, UNABLE_TO_FIND_GIT_MSG, UNCOMMITTED, abbrevCommit, constructIncompatibleGitVersionMessage, doesVersionMeetRequirement, getPathFromStr, getPathFromUri, openGitTerminal, pathWithTrailingSlash, realpath, resolveSpawnOutput, showErrorMessage } from './utils';
 import { Disposable } from './utils/disposable';
 import { Event } from './utils/event';
@@ -140,12 +140,12 @@ export class DataSource extends Disposable {
 			this.getRemotes(repo),
 			showStashes ? this.getStashes(repo) : Promise.resolve([])
 		]).then((results) => {
+			/* eslint no-console: "error" */
 			return { branches: results[0].branches, head: results[0].head, remotes: results[1], stashes: results[2], error: null };
 		}).catch((errorMessage) => {
 			return { branches: [], head: null, remotes: [], stashes: [], error: errorMessage };
 		});
 	}
-
 	/**
 	 * Get the commits in a repository.
 	 * @param repo The path of the repository.
@@ -161,10 +161,10 @@ export class DataSource extends Disposable {
 	 * @param stashes An array of all stashes in the repository.
 	 * @returns The commits in the repository.
 	 */
-	public getCommits(repo: string, branches: ReadonlyArray<string> | null, maxCommits: number, showTags: boolean, showRemoteBranches: boolean, includeCommitsMentionedByReflogs: boolean, onlyFollowFirstParent: boolean, commitOrdering: CommitOrdering, remotes: ReadonlyArray<string>, hideRemotes: ReadonlyArray<string>, stashes: ReadonlyArray<GitStash>): Promise<GitCommitData> {
+	public getCommits(repo: string, branches: ReadonlyArray<string> | null, authors: ReadonlyArray<string> | null, maxCommits: number, showTags: boolean, showRemoteBranches: boolean, includeCommitsMentionedByReflogs: boolean, onlyFollowFirstParent: boolean, commitOrdering: CommitOrdering, remotes: ReadonlyArray<string>, hideRemotes: ReadonlyArray<string>, stashes: ReadonlyArray<GitStash>): Promise<GitCommitData> {
 		const config = getConfig();
 		return Promise.all([
-			this.getLog(repo, branches, maxCommits + 1, showTags && config.showCommitsOnlyReferencedByTags, showRemoteBranches, includeCommitsMentionedByReflogs, onlyFollowFirstParent, commitOrdering, remotes, hideRemotes, stashes),
+			this.getLog(repo, branches, authors, maxCommits + 1, showTags && config.showCommitsOnlyReferencedByTags, showRemoteBranches, includeCommitsMentionedByReflogs, onlyFollowFirstParent, commitOrdering, remotes, hideRemotes, stashes),
 			this.getRefs(repo, showRemoteBranches, config.showRemoteHeads, hideRemotes).then((refData: GitRefData) => refData, (errorMessage: string) => errorMessage)
 		]).then(async (results) => {
 			let commits: GitCommitRecord[] = results[0], refData: GitRefData | string = results[1], i;
@@ -282,9 +282,10 @@ export class DataSource extends Disposable {
 		return Promise.all([
 			this.getConfigList(repo),
 			this.getConfigList(repo, GitConfigLocation.Local),
-			this.getConfigList(repo, GitConfigLocation.Global)
+			this.getConfigList(repo, GitConfigLocation.Global),
+			this.getAuthorList(repo)
 		]).then((results) => {
-			const consolidatedConfigs = results[0], localConfigs = results[1], globalConfigs = results[2];
+			const consolidatedConfigs = results[0], localConfigs = results[1], globalConfigs = results[2], authors = results[3];
 
 			const branches: GitRepoConfigBranches = {};
 			Object.keys(localConfigs).forEach((key) => {
@@ -304,10 +305,10 @@ export class DataSource extends Disposable {
 					}
 				}
 			});
-
 			return {
 				config: {
 					branches: branches,
+					 authors,
 					diffTool: getConfigValue(consolidatedConfigs, GitConfigKey.DiffTool),
 					guiDiffTool: getConfigValue(consolidatedConfigs, GitConfigKey.DiffGuiTool),
 					pushDefault: getConfigValue(consolidatedConfigs, GitConfigKey.RemotePushDefault),
@@ -334,7 +335,53 @@ export class DataSource extends Disposable {
 		});
 	}
 
-
+	private async getAuthorList(repo: string): Promise<ActionedUser[]> {
+		const args = ['shortlog', '-e', '-s', '-n', 'HEAD'];
+		const dict = new Set<string>();
+		const result = await this.spawnGit(args, repo, (authors) => {
+			return authors.split(/\r?\n/g)
+				.map(line => line.trim())
+				.filter(line => line.trim().length > 0)
+				.map(line => line.substring(line.indexOf('\t') + 1))
+				.map(line => {
+					const indexOfEmailSeparator = line.indexOf('<');
+					if (indexOfEmailSeparator === -1) {
+						return {
+							name: line.trim(),
+							email: ''
+						};
+					} else {
+						const nameParts = line.split('<');
+						const name = nameParts.shift()!.trim();
+						const email = nameParts[0].substring(0, nameParts[0].length - 1).trim();
+						return {
+							name,
+							email
+						};
+					}
+				})
+				.filter(item => {
+					if (dict.has(item.name)) {
+						return false;
+					}
+					dict.add(item.name);
+					return true;
+				})
+				.sort((a, b) => (a.name > b.name ? 1 : -1));
+		}).catch((errorMessage) => {
+			if (typeof errorMessage === 'string') {
+				const message = errorMessage.toLowerCase();
+				if (message.startsWith('fatal: unable to read config file') && message.endsWith('no such file or directory')) {
+					// If the Git command failed due to the configuration file not existing, return an empty list instead of throwing the exception
+					return {};
+				}
+			} else {
+				errorMessage = 'An unexpected error occurred while spawning the Git child process.';
+			}
+			throw errorMessage;
+		}) as Promise<ActionedUser[]>;
+		return result;
+	}
 	/* Get Data Methods - Commit Details View */
 
 	/**
@@ -1496,10 +1543,15 @@ export class DataSource extends Disposable {
 	 * @param stashes An array of all stashes in the repository.
 	 * @returns An array of commits.
 	 */
-	private getLog(repo: string, branches: ReadonlyArray<string> | null, num: number, includeTags: boolean, includeRemotes: boolean, includeCommitsMentionedByReflogs: boolean, onlyFollowFirstParent: boolean, order: CommitOrdering, remotes: ReadonlyArray<string>, hideRemotes: ReadonlyArray<string>, stashes: ReadonlyArray<GitStash>) {
+	private getLog(repo: string, branches: ReadonlyArray<string> | null, authors: ReadonlyArray<string> | null, num: number, includeTags: boolean, includeRemotes: boolean, includeCommitsMentionedByReflogs: boolean, onlyFollowFirstParent: boolean, order: CommitOrdering, remotes: ReadonlyArray<string>, hideRemotes: ReadonlyArray<string>, stashes: ReadonlyArray<GitStash>) {
 		const args = ['-c', 'log.showSignature=false', 'log', '--max-count=' + num, '--format=' + this.gitFormatLog, '--' + order + '-order'];
 		if (onlyFollowFirstParent) {
 			args.push('--first-parent');
+		}
+		if(authors !== null) {
+			for (let i = 0; i < authors.length; i++) {
+				args.push(`--author=${authors[i]} <`);
+			}
 		}
 		if (branches !== null) {
 			for (let i = 0; i < branches.length; i++) {
@@ -1519,7 +1571,6 @@ export class DataSource extends Disposable {
 					});
 				}
 			}
-
 			// Add the unique list of base hashes of stashes, so that commits only referenced by stashes are displayed
 			const stashBaseHashes = stashes.map((stash) => stash.baseHash);
 			stashBaseHashes.filter((hash, index) => stashBaseHashes.indexOf(hash) === index).forEach((hash) => args.push(hash));
@@ -1527,6 +1578,8 @@ export class DataSource extends Disposable {
 			args.push('HEAD');
 		}
 		args.push('--');
+
+
 
 		return this.spawnGit(args, repo, (stdout) => {
 			let lines = stdout.split(EOL_REGEX);

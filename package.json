@@ -1,13 +1,13 @@
 {
-	"name": "git-graph",
-	"displayName": "Git Graph",
-	"version": "1.30.0",
-	"publisher": "mhutchie",
+	"name": "git-graph-2",
+	"displayName": "Git Graph 2",
+	"version": "1.31.0",
+	"publisher": "hansu",
 	"author": {
 		"name": "Michael Hutchison",
 		"email": "mhutchie@16right.com"
 	},
-	"description": "View a Git Graph of your repository, and perform Git actions from the graph.",
+	"description": "Fork of mhutchie's Git Graph with further improvements.",
 	"keywords": [
 		"git",
 		"graph",
@@ -18,15 +18,15 @@
 	"categories": [
 		"Other"
 	],
-	"homepage": "https://github.com/mhutchie/vscode-git-graph",
+	"homepage": "https://github.com/hansu/vscode-git-graph",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/mhutchie/vscode-git-graph.git"
+		"url": "https://github.com/hansu/vscode-git-graph.git"
 	},
 	"bugs": {
-		"url": "https://github.com/mhutchie/vscode-git-graph/issues"
+		"url": "https://github.com/hansu/vscode-git-graph/issues"
 	},
-	"qna": "https://github.com/mhutchie/vscode-git-graph/wiki/Support-Resources",
+	"qna": "https://github.com/hansu/vscode-git-graph/wiki/Support-Resources",
 	"license": "SEE LICENSE IN 'LICENSE'",
 	"icon": "resources/icon.png",
 	"engines": {
@@ -410,7 +410,7 @@
 							}
 						}
 					},
-					"markdownDescription": "Customise which context menu actions are visible. For example, if you want to hide the rebase action from the branch context menu, a suitable value for this setting is `{ \"branch\": { \"rebase\": false } }`. For more information of how to configure this setting, view the documentation [here](https://github.com/mhutchie/vscode-git-graph/wiki/Extension-Settings#context-menu-actions-visibility)."
+					"markdownDescription": "Customise which context menu actions are visible. For example, if you want to hide the rebase action from the branch context menu, a suitable value for this setting is `{ \"branch\": { \"rebase\": false } }`. For more information of how to configure this setting, view the documentation [here](https://github.com/hansu/vscode-git-graph/wiki/Extension-Settings#context-menu-actions-visibility)."
 				},
 				"git-graph.customBranchGlobPatterns": {
 					"type": "array",
@@ -480,12 +480,12 @@
 							"templateUrl": {
 								"type": "string",
 								"title": "Template URL",
-								"markdownDescription": "A template URL that can be used to create a Pull Request, after the $1 - $8 variables have been substituted to construct the final URL. For information on how to configure this setting, see the documentation [here](https://github.com/mhutchie/vscode-git-graph/wiki/Configuring-a-custom-Pull-Request-Provider)."
+								"markdownDescription": "A template URL that can be used to create a Pull Request, after the $1 - $8 variables have been substituted to construct the final URL. For information on how to configure this setting, see the documentation [here](https://github.com/hansu/vscode-git-graph/wiki/Configuring-a-custom-Pull-Request-Provider)."
 							}
 						}
 					},
 					"default": [],
-					"markdownDescription": "An array of custom Pull Request providers that can be used in the \"Pull Request Creation\" Integration. For information on how to configure this setting, see the documentation [here](https://github.com/mhutchie/vscode-git-graph/wiki/Configuring-a-custom-Pull-Request-Provider)."
+					"markdownDescription": "An array of custom Pull Request providers that can be used in the \"Pull Request Creation\" Integration. For information on how to configure this setting, see the documentation [here](https://github.com/hansu/vscode-git-graph/wiki/Configuring-a-custom-Pull-Request-Provider)."
 				},
 				"git-graph.date.format": {
 					"type": "string",
@@ -1155,6 +1155,11 @@
 					"default": "Inline",
 					"description": "Specifies where the \"View Git Graph\" action appears on the title of SCM Providers."
 				},
+				"git-graph.stickyHeader": {
+					"type": "boolean",
+					"default": true,
+					"description": "Keeps the header visible when the view is scrolled"
+				},
 				"git-graph.tabIconColourTheme": {
 					"type": "string",
 					"enum": [
@@ -1529,11 +1534,15 @@
 		"iconv-lite": "0.5.0"
 	},
 	"devDependencies": {
+		"@types/babel__core": "7.1.18",
+		"@types/babel__traverse": "7.14.2",
 		"@types/jest": "26.0.19",
 		"@types/node": "8.10.62",
+		"@types/prettier": "<2.6.0",
 		"@types/vscode": "1.38.0",
 		"@typescript-eslint/eslint-plugin": "4.10.0",
 		"@typescript-eslint/parser": "4.10.0",
+		"@vscode/vsce": "^2.19.0",
 		"eslint": "7.15.0",
 		"jest": "26.6.3",
 		"ts-jest": "26.4.4",

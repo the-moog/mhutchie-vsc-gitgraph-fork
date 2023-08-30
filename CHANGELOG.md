@@ -1,5 +1,20 @@
 # Change Log
 
+## 1.31.0 - 2023-05-16
+* #14 Added button to jump to HEAD. Thanks [@QrackEE](https://github.com/QrackEE).
+* #6 Add collapse/expand buttons to commit diff view.
+* #4 Adjust column width also when the table header is not displayed.
+* #1 Added author filter.
+* [mhutchie#132](https://github.com/mhutchie/vscode-git-graph/issues/132) Added sticky header option. Can be controlled via the setting `git-graph.stickyHeader`.
+* [mhutchie#557](https://github.com/mhutchie/vscode-git-graph/issues/557) Improved context menu click event handling.
+* [mhutchie#547](https://github.com/mhutchie/vscode-git-graph/issues/547) Improved Git backwards compatibility when force deleting branches.
+* [mhutchie#517](https://github.com/mhutchie/vscode-git-graph/issues/517) The visibility of actions in the Commit Details View's File Context Menu can now be controlled via the extension setting `git-graph.contextMenuActionsVisibility`.
+* [mhutchie#516](https://github.com/mhutchie/vscode-git-graph/issues/516) New "Reset File to this Revision..." action on the File Context Menu in the Commit Details View.
+* [mhutchie#507](https://github.com/mhutchie/vscode-git-graph/issues/507) Display a warning before pushing a tag when it's on a commit that isn't on any known branch on the remote(s) the tag is being pushed to.
+* [mhutchie#499](https://github.com/mhutchie/vscode-git-graph/issues/499) If a branch's name contains an issue number, the issue can be viewed via the branch's context menu.
+* [mhutchie#498](https://github.com/mhutchie/vscode-git-graph/issues/498) Verify and display the signature status of signed tags on the "View Details" Dialog.
+* [mhutchie#494](https://github.com/mhutchie/vscode-git-graph/issues/494) Logging Enhancements: transform empty args, and logging command invocations.
+
 ## 1.30.0 - 2021-04-05
 * #395 Added a "Force Fetch" option onto the "Fetch into Local Branch" Dialog, allowing any local branch (that's not checked out) to be reset to the remote branch. This dialog is accessed via the Remote Branch Context Menu.
 * #457 New "View Diff with Working File" action on the File Context Menu in the Commit Details View.

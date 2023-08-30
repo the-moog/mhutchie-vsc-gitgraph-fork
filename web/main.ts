@@ -1,3 +1,4 @@
+
 class GitGraphView {
 	private gitRepos: GG.GitRepoSet;
 	private gitBranches: ReadonlyArray<string> = [];
@@ -12,6 +13,7 @@ class GitGraphView {
 	private onlyFollowFirstParent: boolean = false;
 	private avatars: AvatarImageCollection = {};
 	private currentBranches: string[] | null = null;
+	private currentAuthors: string[] | null = null;
 
 	private currentRepo!: string;
 	private currentRepoLoading: boolean = true;
@@ -45,14 +47,15 @@ class GitGraphView {
 	private readonly settingsWidget: SettingsWidget;
 	private readonly repoDropdown: Dropdown;
 	private readonly branchDropdown: Dropdown;
+	private readonly authorDropdown: Dropdown;
 
 	private readonly viewElem: HTMLElement;
 	private readonly controlsElem: HTMLElement;
 	private readonly tableElem: HTMLElement;
+	private tableColHeadersElem: HTMLElement | null;
 	private readonly footerElem: HTMLElement;
 	private readonly showRemoteBranchesElem: HTMLInputElement;
 	private readonly refreshBtnElem: HTMLElement;
-	private readonly scrollShadowElem: HTMLElement;
 
 	constructor(viewElem: HTMLElement, prevState: WebViewState | null) {
 		this.gitRepos = initialState.repos;
@@ -72,8 +75,8 @@ class GitGraphView {
 
 		this.controlsElem = document.getElementById('controls')!;
 		this.tableElem = document.getElementById('commitTable')!;
+		this.tableColHeadersElem = document.getElementById('tableColHeaders')!;
 		this.footerElem = document.getElementById('footer')!;
-		this.scrollShadowElem = <HTMLInputElement>document.getElementById('scrollShadow')!;
 
 		viewElem.focus();
 
@@ -90,7 +93,13 @@ class GitGraphView {
 			this.clearCommits();
 			this.requestLoadRepoInfoAndCommits(true, true);
 		});
-
+		this.authorDropdown = new Dropdown('authorDropdown', false, true, 'Authors', (values) => {
+			this.currentAuthors = values;
+			this.maxCommits = this.config.initialLoadCommits;
+			this.saveState();
+			this.clearCommits();
+			this.requestLoadRepoInfoAndCommits(true, true);
+		});
 		this.showRemoteBranchesElem = <HTMLInputElement>document.getElementById('showRemoteBranchesCheckbox')!;
 		this.showRemoteBranchesElem.addEventListener('change', () => {
 			this.saveRepoStateValue(this.currentRepo, 'showRemoteBranchesV2', this.showRemoteBranchesElem.checked ? GG.BooleanOverride.Enabled : GG.BooleanOverride.Disabled);
@@ -121,6 +130,7 @@ class GitGraphView {
 		if (prevState && !prevState.currentRepoLoading && typeof this.gitRepos[prevState.currentRepo] !== 'undefined') {
 			this.currentRepo = prevState.currentRepo;
 			this.currentBranches = prevState.currentBranches;
+			this.currentAuthors = prevState.currentAuthors;
 			this.maxCommits = prevState.maxCommits;
 			this.expandedCommit = prevState.expandedCommit;
 			this.avatars = prevState.avatars;
@@ -145,7 +155,13 @@ class GitGraphView {
 			this.requestLoadRepoInfoAndCommits(false, false);
 		}
 
-		const fetchBtn = document.getElementById('fetchBtn')!, findBtn = document.getElementById('findBtn')!, settingsBtn = document.getElementById('settingsBtn')!, terminalBtn = document.getElementById('terminalBtn')!;
+		const currentBtn = document.getElementById('currentBtn')!, fetchBtn = document.getElementById('fetchBtn')!, findBtn = document.getElementById('findBtn')!, settingsBtn = document.getElementById('settingsBtn')!, terminalBtn = document.getElementById('terminalBtn')!;
+		currentBtn.innerHTML = SVG_ICONS.current;
+		currentBtn.addEventListener('click', () => {
+			if (this.commitHead) {
+				this.scrollToCommit(this.commitHead, true, true);
+			}
+		});
 		fetchBtn.title = 'Fetch' + (this.config.fetchAndPrune ? ' & Prune' : '') + ' from Remote(s)';
 		fetchBtn.innerHTML = SVG_ICONS.download;
 		fetchBtn.addEventListener('click', () => this.fetchFromRemotesAction());
@@ -214,6 +230,7 @@ class GitGraphView {
 		this.gitStashes = [];
 		this.gitTags = [];
 		this.currentBranches = null;
+		this.currentAuthors = null;
 		this.renderFetchButton();
 		this.closeCommitDetails(false);
 		this.settingsWidget.close();
@@ -268,10 +285,21 @@ class GitGraphView {
 			}
 		}
 
+		// Configure current branches
+		if (this.currentBranches !== null && !(this.currentBranches.length === 1 && this.currentBranches[0] === SHOW_ALL_BRANCHES)) {
+			// Filter any branches that are currently selected, but no longer exist
+			const globPatterns = this.config.customBranchGlobPatterns.map((pattern) => pattern.glob);
+			this.currentBranches = this.currentBranches.filter((branch) =>
+				this.gitBranches.includes(branch) || globPatterns.includes(branch)
+			);
+		}
 		this.saveState();
+		this.currentAuthors = [];
+		this.currentAuthors.push(SHOW_ALL_BRANCHES);
 
 		// Set up branch dropdown options
 		this.branchDropdown.setOptions(this.getBranchOptions(true), this.currentBranches);
+		this.authorDropdown.setOptions(this.getAuthorOptions(), this.currentAuthors);
 
 		// Remove hidden remotes that no longer exist
 		let hiddenRemotes = this.gitRepos[this.currentRepo].hideRemotes;
@@ -494,6 +522,7 @@ class GitGraphView {
 			this.renderCdvExternalDiffBtn();
 		}
 		this.settingsWidget.refresh();
+		this.authorDropdown.setOptions(this.getAuthorOptions(), this.currentAuthors);
 	}
 
 	private displayLoadDataError(message: string, reason: string) {
@@ -537,7 +566,17 @@ class GitGraphView {
 		}
 		return options;
 	}
-
+	public getAuthorOptions(): ReadonlyArray<DialogSelectInputOption> {
+		const options: DialogSelectInputOption[] = [];
+		options.push({ name: 'All', value: SHOW_ALL_BRANCHES });
+		if(this.gitConfig && this.gitConfig.authors) {
+			for (let i = 0; i < this!.gitConfig!.authors.length; i++) {
+				const author = this!.gitConfig!.authors[i];
+				options.push({ name: author.name, value: author.name });
+			}
+		}
+		return options;
+	}
 	public getCommitId(hash: string) {
 		return typeof this.commitLookup[hash] === 'number' ? this.commitLookup[hash] : null;
 	}
@@ -609,6 +648,7 @@ class GitGraphView {
 			repo: this.currentRepo,
 			refreshId: ++this.currentRepoRefreshState.loadCommitsRefreshId,
 			branches: this.currentBranches === null || (this.currentBranches.length === 1 && this.currentBranches[0] === SHOW_ALL_BRANCHES) ? null : this.currentBranches,
+			authors: this.currentAuthors === null || (this.currentAuthors.length === 1 && this.currentAuthors[0] === SHOW_ALL_BRANCHES) ? null : this.currentAuthors,
 			maxCommits: this.maxCommits,
 			showTags: getShowTags(repoState.showTags),
 			showRemoteBranches: getShowRemoteBranches(repoState.showRemoteBranchesV2),
@@ -722,6 +762,7 @@ class GitGraphView {
 			commitHead: this.commitHead,
 			avatars: this.avatars,
 			currentBranches: this.currentBranches,
+			currentAuthors: this.currentAuthors,
 			moreCommitsAvailable: this.moreCommitsAvailable,
 			maxCommits: this.maxCommits,
 			onlyFollowFirstParent: this.onlyFollowFirstParent,
@@ -866,11 +907,16 @@ class GitGraphView {
 				: '';
 
 			html += '<tr class="commit' + (commit.hash === currentHash ? ' current' : '') + (mutedCommits[i] ? ' mute' : '') + '"' + (commit.hash !== UNCOMMITTED ? '' : ' id="uncommittedChanges"') + ' data-id="' + i + '" data-color="' + vertexColours[i] + '">' +
-				(this.config.referenceLabels.branchLabelsAlignedToGraph ? '<td>' + (refBranches !== '' ? '<span style="margin-left:' + (widthsAtVertices[i] - 4) + 'px"' + refBranches.substring(5) : '') + '</td><td><span class="description">' + commitDot : '<td></td><td><span class="description">' + commitDot + refBranches) + (this.config.referenceLabels.tagLabelsOnRight ? message + refTags : refTags + message) + '</span></td>' +
-				(colVisibility.date ? '<td class="dateCol text" title="' + date.title + '">' + date.formatted + '</td>' : '') +
-				(colVisibility.author ? '<td class="authorCol text" title="' + escapeHtml(commit.author + ' <' + commit.email + '>') + '">' + (this.config.fetchAvatars ? '<span class="avatar" data-email="' + escapeHtml(commit.email) + '">' + (typeof this.avatars[commit.email] === 'string' ? '<img class="avatarImg" src="' + this.avatars[commit.email] + '">' : '') + '</span>' : '') + escapeHtml(commit.author) + '</td>' : '') +
-				(colVisibility.commit ? '<td class="text" title="' + escapeHtml(commit.hash) + '">' + abbrevCommit(commit.hash) + '</td>' : '') +
+				(this.config.referenceLabels.branchLabelsAlignedToGraph ? '<td>' + getResizeColHtml(0) + (refBranches !== '' ? '<span style="margin-left:' + (widthsAtVertices[i] - 4) + 'px"' + refBranches.substring(5) : '') + '</td><td>' + getResizeColHtml(1) + '<span class="description">' + commitDot : '<td>' + getResizeColHtml(0) + '</td><td>' + getResizeColHtml(1) + '<span class="description">' + commitDot + refBranches) + (this.config.referenceLabels.tagLabelsOnRight ? message + refTags : refTags + message) + '</span></td>' +
+				(colVisibility.date ? '<td class="dateCol text" title="' + date.title + '">' + getResizeColHtml(2) + date.formatted + '</td>' : '') +
+				(colVisibility.author ? '<td class="authorCol text" title="' + escapeHtml(commit.author + ' <' + commit.email + '>') + '">' + getResizeColHtml(3) + (this.config.fetchAvatars ? '<span class="avatar" data-email="' + escapeHtml(commit.email) + '">' + (typeof this.avatars[commit.email] === 'string' ? '<img class="avatarImg" src="' + this.avatars[commit.email] + '">' : '') + '</span>' : '') + escapeHtml(commit.author) + '</td>' : '') +
+				(colVisibility.commit ? '<td class="text" title="' + escapeHtml(commit.hash) + '">' + getResizeColHtml(4) + abbrevCommit(commit.hash) + '</td>' : '') +
 				'</tr>';
+
+
+		}
+		function getResizeColHtml(col:number) {
+			 return (col > 0 ? '<span class="resizeCol left" data-col="' + (col - 1) + '"></span>' : '') + (col < 4 ? '<span class="resizeCol right" data-col="' + col + '"></span>' : '');
 		}
 		this.tableElem.innerHTML = '<table>' + html + '</table>';
 		this.footerElem.innerHTML = this.moreCommitsAvailable ? '<div id="loadMoreCommitsBtn" class="roundedBtn">Load More Commits</div>' : '';
@@ -919,6 +965,11 @@ class GitGraphView {
 					}
 				}
 			}
+		}
+
+		if (this.config.stickyHeader) {
+			this.tableColHeadersElem = document.getElementById('tableColHeaders');
+			this.alignTableHeaderToControls();
 		}
 	}
 
@@ -971,6 +1022,8 @@ class GitGraphView {
 	private getBranchContextMenuActions(target: DialogTarget & RefTarget): ContextMenuActions {
 		const refName = target.ref, visibility = this.config.contextMenuActionsVisibility.branch;
 		const isSelectedInBranchesDropdown = this.branchDropdown.isSelected(refName);
+		// const isSelectedInBranchesDropdown = this.authorDropdown.isSelected(refName);
+
 		return [[
 			{
 				title: 'Checkout Branch',
@@ -1938,6 +1991,12 @@ class GitGraphView {
 		this.requestLoadRepoInfoAndCommits(false, true);
 	}
 
+	private alignTableHeaderToControls() {
+		if (!this.tableColHeadersElem) {
+			return;
+		}
+	}
+
 
 	/* Observers */
 
@@ -1949,6 +2008,10 @@ class GitGraphView {
 			} else {
 				windowWidth = window.outerWidth;
 				windowHeight = window.outerHeight;
+			}
+
+			if (this.config.stickyHeader) {
+				this.alignTableHeaderToControls();
 			}
 		});
 	}
@@ -1982,6 +2045,8 @@ class GitGraphView {
 				editorFontFamily = eff;
 				this.repoDropdown.refresh();
 				this.branchDropdown.refresh();
+				this.authorDropdown.refresh();
+
 			}
 			if (fmc !== findMatchColour) {
 				findMatchColour = fmc;
@@ -1997,12 +2062,10 @@ class GitGraphView {
 
 	private observeViewScroll() {
 		let active = this.viewElem.scrollTop > 0, timeout: NodeJS.Timer | null = null;
-		this.scrollShadowElem.className = active ? CLASS_ACTIVE : '';
 		this.viewElem.addEventListener('scroll', () => {
 			const scrollTop = this.viewElem.scrollTop;
 			if (active !== scrollTop > 0) {
 				active = scrollTop > 0;
-				this.scrollShadowElem.className = active ? CLASS_ACTIVE : '';
 			}
 
 			if (this.config.loadMoreCommitsAutomatically && this.moreCommitsAvailable && !this.currentRepoRefreshState.inProgress) {
@@ -2096,6 +2159,9 @@ class GitGraphView {
 					handledEvent(e);
 				} else if (this.branchDropdown.isOpen()) {
 					this.branchDropdown.close();
+					handledEvent(e);
+				} else if (this.authorDropdown.isOpen()) {
+					this.authorDropdown.close();
 					handledEvent(e);
 				} else if (this.settingsWidget.isVisible()) {
 					this.settingsWidget.close();
@@ -2577,7 +2643,7 @@ class GitGraphView {
 		}
 		html += '</div><div id="cdvControls"><div id="cdvClose" class="cdvControlBtn" title="Close">' + SVG_ICONS.close + '</div>' +
 			(codeReviewPossible ? '<div id="cdvCodeReview" class="cdvControlBtn">' + SVG_ICONS.review + '</div>' : '') +
-			(!expandedCommit.loading ? '<div id="cdvFileViewTypeTree" class="cdvControlBtn cdvFileViewTypeBtn" title="File Tree View">' + SVG_ICONS.fileTree + '</div><div id="cdvFileViewTypeList" class="cdvControlBtn cdvFileViewTypeBtn" title="File List View">' + SVG_ICONS.fileList + '</div>' : '') +
+			(!expandedCommit.loading ? '<div id="cdvFileViewTypeList" class="cdvControlBtn cdvFileViewTypeBtn" title="File List View">' + SVG_ICONS.fileList + '</div><div id="cdvFileViewTypeTree" class="cdvControlBtn cdvFileViewTypeBtn" title="File Tree View">' + SVG_ICONS.fileTree + '</div><div id="cdvCollapse" class="cdvControlBtn cdvFolderBtn" title="Collapse/Expand Folders">' + SVG_ICONS.collapseAll + '</div><div id="cdvExpand" class="cdvControlBtn cdvFolderBtn" title="Expand Folders">' + SVG_ICONS.expandAll + '</div>' : '') +
 			(externalDiffPossible ? '<div id="cdvExternalDiff" class="cdvControlBtn">' + SVG_ICONS.linkExternal + '</div>' : '') +
 			'</div><div class="cdvHeightResize"></div>';
 
@@ -2648,6 +2714,12 @@ class GitGraphView {
 
 			document.getElementById('cdvFileViewTypeList')!.addEventListener('click', () => {
 				this.changeFileViewType(GG.FileViewType.List);
+			});
+			document.getElementById('cdvCollapse')!.addEventListener('click', () => {
+				this.openFolders(false);
+			});
+			document.getElementById('cdvExpand')!.addEventListener('click', () => {
+				this.openFolders(true);
 			});
 
 			if (codeReviewPossible) {
@@ -2868,6 +2940,29 @@ class GitGraphView {
 		filesElem.innerHTML = generateFileViewHtml(expandedCommit.fileTree, expandedCommit.fileChanges, expandedCommit.lastViewedFile, expandedCommit.contextMenuOpen.fileView, type, commitOrder.to === UNCOMMITTED);
 		this.makeCdvFileViewInteractive();
 		this.renderCdvFileViewTypeBtns();
+	}
+
+	private openFolders(open:boolean) {
+		let expandedCommit = this.expandedCommit;
+		if (expandedCommit === null || expandedCommit.fileTree === null) return;
+		let folders = document.getElementsByClassName('fileTreeFolder');
+		for (let i = 0; i < folders.length; i++) {
+			let sourceElem = <HTMLElement>(folders[i]);
+			let parent = sourceElem.parentElement!;
+			if(open) {
+				parent.classList.remove('closed');
+				sourceElem.children[0].children[0].innerHTML = SVG_ICONS.openFolder;
+				parent.children[1].classList.remove('hidden');
+				alterFileTreeFolderOpen(expandedCommit.fileTree, decodeURIComponent(sourceElem.dataset.folderpath!), true);
+
+			} else{
+				parent.classList.add('closed');
+				sourceElem.children[0].children[0].innerHTML = SVG_ICONS.closedFolder;
+				parent.children[1].classList.add('hidden');
+				alterFileTreeFolderOpen(expandedCommit.fileTree, decodeURIComponent(sourceElem.dataset.folderpath!), false);
+			}
+		}
+		this.saveState();
 	}
 
 	private makeCdvFileViewInteractive() {
@@ -3111,6 +3206,16 @@ class GitGraphView {
 		let listView = this.getFileViewType() === GG.FileViewType.List;
 		alterClass(treeBtnElem, CLASS_ACTIVE, !listView);
 		alterClass(listBtnElem, CLASS_ACTIVE, listView);
+		setFolderBtns();
+		function setFolderBtns() {
+			let btns = document.getElementsByClassName('cdvFolderBtn');
+			for (let i = 0; i < btns.length; i++) {
+				if(listView)
+					btns[i].classList.add('hidden');
+				else
+					btns[i].classList.remove('hidden');
+			}
+		}
 	}
 
 	private renderCdvExternalDiffBtn() {
