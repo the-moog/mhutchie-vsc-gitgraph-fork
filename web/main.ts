@@ -56,7 +56,6 @@ class GitGraphView {
 	private readonly footerElem: HTMLElement;
 	private readonly showRemoteBranchesElem: HTMLInputElement;
 	private readonly refreshBtnElem: HTMLElement;
-
 	constructor(viewElem: HTMLElement, prevState: WebViewState | null) {
 		this.gitRepos = initialState.repos;
 		this.config = initialState.config;
@@ -1928,10 +1927,7 @@ class GitGraphView {
 		}
 	}
 
-	private getNumColumns() {
-		let colVisibility = this.getColumnVisibility();
-		return 2 + (colVisibility.date ? 1 : 0) + (colVisibility.author ? 1 : 0) + (colVisibility.commit ? 1 : 0);
-	}
+
 
 	/**
 	 * Scroll the view to the previous or next stash.
@@ -2013,6 +2009,8 @@ class GitGraphView {
 			if (this.config.stickyHeader) {
 				this.alignTableHeaderToControls();
 			}
+			// this.renderCommitDetailsView(true);
+			this.hideCdvSummary(this.gitRepos[this.currentRepo].isCdvSummaryHidden, true);
 		});
 	}
 
@@ -2585,12 +2583,13 @@ class GitGraphView {
 		const commitOrder = this.getCommitOrder(expandedCommit.commitHash, expandedCommit.compareWithHash === null ? expandedCommit.commitHash : expandedCommit.compareWithHash);
 		const codeReviewPossible = !expandedCommit.loading && commitOrder.to !== UNCOMMITTED;
 		const externalDiffPossible = !expandedCommit.loading && (expandedCommit.compareWithHash !== null || this.commits[this.commitLookup[expandedCommit.commitHash]].parents.length > 0);
+		let elemWasNull;
 
 		if (elem === null) {
-			elem = document.createElement(isDocked ? 'div' : 'tr');
+			elem = document.createElement(isDocked ? 'div' : 'div');
 			elem.id = 'cdv';
 			elem.className = isDocked ? 'docked' : 'inline';
-			this.setCdvHeight(elem, isDocked);
+			elemWasNull = true;
 			if (isDocked) {
 				document.body.appendChild(elem);
 			} else {
@@ -2599,9 +2598,9 @@ class GitGraphView {
 		}
 
 		if (expandedCommit.loading) {
-			html += '<div id="cdvLoading">' + SVG_ICONS.loading + ' Loading ' + (expandedCommit.compareWithHash === null ? expandedCommit.commitHash !== UNCOMMITTED ? 'Commit Details' : 'Uncommitted Changes' : 'Commit Comparison') + ' ...</div>';
+			html += '<div id="cdvLoading"><div class="cdvColorOverlay"></div>' + SVG_ICONS.loading + ' Loading ' + (expandedCommit.compareWithHash === null ? expandedCommit.commitHash !== UNCOMMITTED ? 'Commit Details' : 'Uncommitted Changes' : 'Commit Comparison') + ' ...</div>';
 		} else {
-			html += '<div id="cdvSummary">';
+			html += '<div id="cdvSummary"><div class="cdvColorOverlay"></div>';
 			if (expandedCommit.compareWithHash === null) {
 				// Commit details should be shown
 				if (expandedCommit.commitHash !== UNCOMMITTED) {
@@ -2639,18 +2638,20 @@ class GitGraphView {
 				// Commit comparison should be shown
 				html += 'Displaying all changes from <b>' + commitOrder.from + '</b> to <b>' + (commitOrder.to !== UNCOMMITTED ? commitOrder.to : 'Uncommitted Changes') + '</b>.';
 			}
-			html += '</div><div id="cdvFiles">' + generateFileViewHtml(expandedCommit.fileTree!, expandedCommit.fileChanges!, expandedCommit.lastViewedFile, expandedCommit.contextMenuOpen.fileView, this.getFileViewType(), commitOrder.to === UNCOMMITTED) + '</div><div id="cdvDivider"></div>';
+			html += '</div><div id="cdvFilesView"><div class="cdvColorOverlay"></div><div id="cdvSummaryToggleParent" class="cdvSummaryToggle"></div><div id="cdvSummaryToggleBtn" class="cdvSummaryToggle">' + SVG_ICONS.collapse + '</div>' + '<div id="cdvFiles" >' + generateFileViewHtml(expandedCommit.fileTree!, expandedCommit.fileChanges!, expandedCommit.lastViewedFile, expandedCommit.contextMenuOpen.fileView, this.getFileViewType(), commitOrder.to === UNCOMMITTED) + '</div></div><div id="cdvDivider"></div>';
 		}
-		html += '</div><div id="cdvControls"><div id="cdvClose" class="cdvControlBtn" title="Close">' + SVG_ICONS.close + '</div>' +
+		html += '</div><div id="cdvControls"><div class="cdvColorOverlay"></div><div id="cdvClose" class="cdvControlBtn" title="Close">' + SVG_ICONS.close + '</div>' +
 			(codeReviewPossible ? '<div id="cdvCodeReview" class="cdvControlBtn">' + SVG_ICONS.review + '</div>' : '') +
 			(!expandedCommit.loading ? '<div id="cdvFileViewTypeList" class="cdvControlBtn cdvFileViewTypeBtn" title="File List View">' + SVG_ICONS.fileList + '</div><div id="cdvFileViewTypeTree" class="cdvControlBtn cdvFileViewTypeBtn" title="File Tree View">' + SVG_ICONS.fileTree + '</div><div id="cdvCollapse" class="cdvControlBtn cdvFolderBtn" title="Collapse/Expand Folders">' + SVG_ICONS.collapseAll + '</div><div id="cdvExpand" class="cdvControlBtn cdvFolderBtn" title="Expand Folders">' + SVG_ICONS.expandAll + '</div>' : '') +
 			(externalDiffPossible ? '<div id="cdvExternalDiff" class="cdvControlBtn">' + SVG_ICONS.linkExternal + '</div>' : '') +
 			'</div><div class="cdvHeightResize"></div>';
 
-		elem.innerHTML = isDocked ? html : '<td><div class="cdvHeightResize"></div></td><td colspan="' + (this.getNumColumns() - 1) + '">' + html + '</td>';
-		if (!expandedCommit.loading) this.setCdvDivider();
-		if (!isDocked) this.renderGraph();
-
+		elem.innerHTML = isDocked ? '<div id="cdvDockedWindow">' + html + '</div>' : '<div id="cdvInlineWindow">' + html + '</div>';
+		if(elemWasNull)
+			this.setCdvHeight(isDocked);
+		if (!expandedCommit.loading)
+			this.hideCdvSummary(this.gitRepos[this.currentRepo].isCdvSummaryHidden, false);
+		// if (!isDocked) this.renderGraph();
 		if (!refresh) {
 			if (isDocked) {
 				let elemTop = this.controlsElem.clientHeight + expandedCommit.commitElem.offsetTop;
@@ -2698,7 +2699,10 @@ class GitGraphView {
 					contextMenu.close();
 				}
 			}, () => this.saveState());
-
+			document.getElementById('cdvSummaryToggleBtn')!.addEventListener('click', () => {
+				this.gitRepos[this.currentRepo].isCdvSummaryHidden = !(this.gitRepos[this.currentRepo].isCdvSummaryHidden);
+				this.hideCdvSummary(this.gitRepos[this.currentRepo].isCdvSummaryHidden, true);
+			});
 			observeElemScroll('cdvFiles', expandedCommit.scrollTop.fileView, (scrollTop) => {
 				if (this.expandedCommit === null) return;
 				this.expandedCommit.scrollTop.fileView = scrollTop;
@@ -2764,7 +2768,7 @@ class GitGraphView {
 		}
 	}
 
-	private setCdvHeight(elem: HTMLElement, isDocked: boolean) {
+	private setCdvHeight(isDocked: boolean) {
 		let height = this.gitRepos[this.currentRepo].cdvHeight, windowHeight = window.innerHeight;
 		if (height > windowHeight - 40) {
 			height = Math.max(windowHeight - 40, 100);
@@ -2774,17 +2778,26 @@ class GitGraphView {
 			}
 		}
 
+
 		let heightPx = height + 'px';
-		elem.style.height = heightPx;
-		if (isDocked) this.viewElem.style.bottom = heightPx;
+		if(isDocked) {
+			document.getElementById('cdvDockedWindow')!.style.height = heightPx;
+			document.getElementById('cdv')!.style.bottom = heightPx;
+
+			this.viewElem.style.bottom = this.gitRepos[this.currentRepo].isCdvSummaryHidden ? '0px' : heightPx;
+		} else {
+			let inlineElem = document.getElementById('cdvInlineWindow');
+			inlineElem!.style.height = heightPx;
+		}
 	}
 
 	private setCdvDivider() {
 		let percent = (this.gitRepos[this.currentRepo].cdvDivider * 100).toFixed(2) + '%';
-		let summaryElem = document.getElementById('cdvSummary'), dividerElem = document.getElementById('cdvDivider'), filesElem = document.getElementById('cdvFiles');
+		let summaryElem = document.getElementById('cdvSummary'), dividerElem = document.getElementById('cdvDivider'), filesElem = document.getElementById('cdvFilesView');
 		if (summaryElem !== null) summaryElem.style.width = percent;
 		if (dividerElem !== null) dividerElem.style.left = percent;
 		if (filesElem !== null) filesElem.style.left = percent;
+
 	}
 
 	private makeCdvResizable() {
@@ -2802,8 +2815,8 @@ class GitGraphView {
 			if (this.gitRepos[this.currentRepo].cdvHeight !== height) {
 				this.gitRepos[this.currentRepo].cdvHeight = height;
 				let elem = document.getElementById('cdv');
-				if (elem !== null) this.setCdvHeight(elem, isDocked);
-				if (!isDocked) this.renderGraph();
+				if (elem !== null) this.setCdvHeight(isDocked);
+				// if (!isDocked) this.renderGraph();
 			}
 		};
 		const stopResizingCdvHeight: EventListener = (e) => {
@@ -2825,9 +2838,11 @@ class GitGraphView {
 
 		const processDraggingCdvDivider: EventListener = (e) => {
 			if (minX < 0) return;
+			if((<MouseEvent>e).clientX < this.gitRepos[this.currentRepo].columnWidths![0] + 24 && !this.isCdvDocked())return;
+			if((<MouseEvent>e).clientX < 16 && this.isCdvDocked())return;
 			let percent = ((<MouseEvent>e).clientX - minX) / width;
-			if (percent < 0.2) percent = 0.2;
-			else if (percent > 0.8) percent = 0.8;
+			if (!this.gitRepos[this.currentRepo].isCdvSummaryHidden && percent < 0.2) percent = 0.2;
+			if (percent > 0.8) percent = 0.8;
 
 			if (this.gitRepos[this.currentRepo].cdvDivider !== percent) {
 				this.gitRepos[this.currentRepo].cdvDivider = percent;
@@ -2837,6 +2852,7 @@ class GitGraphView {
 		const stopDraggingCdvDivider: EventListener = (e) => {
 			if (minX < 0) return;
 			processDraggingCdvDivider(e);
+			this.gitRepos[this.currentRepo].cdvFilesWidth = document.getElementById('cdvFilesView')!.offsetWidth;
 			this.saveRepoState();
 			minX = -1;
 			eventOverlay.remove();
@@ -2912,6 +2928,71 @@ class GitGraphView {
 		return this.expandedCommit !== null && this.expandedCommit.commitHash === commitHash && this.expandedCommit.compareWithHash === compareWithHash;
 	}
 
+	public hideCdvSummary(hidden:boolean, calcDivider: boolean) {
+		let cdvSummary = document.getElementById('cdvSummary');
+		let inlineWindow =	document.getElementById('cdvInlineWindow');
+		let btn = document.getElementById('cdvSummaryToggleBtn');
+		let cdvElem = document.getElementById('cdv');
+		let dockedWindwow = document.getElementById('cdvDockedWindow');
+
+		let inlineWindowWidth = document.documentElement.clientWidth - cdvElem!.offsetWidth - 16;
+
+		if(hidden) {
+			cdvSummary!.classList.add('hidden');
+			btn!.classList.add('expandBtn');
+			let newWindowWidth = this.gitRepos[this.currentRepo].cdvFilesWidth + document.getElementById('cdvControls')!.offsetWidth;
+			if(!this.isCdvDocked()) {
+				if(newWindowWidth > inlineWindowWidth) {
+					newWindowWidth = inlineWindowWidth;
+					this.gitRepos[this.currentRepo].cdvFilesWidth = inlineWindowWidth - document.getElementById('cdvControls')!.offsetWidth;
+				}
+				inlineWindow!.style.width = newWindowWidth + 'px';
+		 		inlineWindow!.style.right = -(inlineWindowWidth) + 'px';
+			} else if(this.isCdvDocked()) {
+				if(newWindowWidth > document.documentElement.clientWidth - 16) {
+					newWindowWidth = document.documentElement.clientWidth - 16;
+					this.gitRepos[this.currentRepo].cdvFilesWidth = document.documentElement.clientWidth - 16;
+				}
+				dockedWindwow!.style.width = newWindowWidth + 'px';
+				dockedWindwow!.style.right = 0 + 'px';
+			}
+			this.gitRepos[this.currentRepo].cdvDivider = 0;
+
+
+		} else{
+			let minSummaryWidth = document.documentElement.clientWidth * 0.2;
+			cdvSummary!.classList.remove('hidden');
+			btn!.classList.remove('expandBtn');
+			if(!this.isCdvDocked()) {
+				let summaryWidthInline = inlineWindowWidth - this.gitRepos[this.currentRepo].cdvFilesWidth - 16;
+				if(summaryWidthInline < minSummaryWidth) {
+					summaryWidthInline = minSummaryWidth;
+					 this.gitRepos[this.currentRepo].cdvFilesWidth = inlineWindowWidth - document.getElementById('cdvControls')!.offsetWidth - minSummaryWidth;
+
+				}
+				inlineWindow!.style.width =	inlineWindowWidth + 'px';
+				inlineWindow!.style.right = -(inlineWindowWidth) + 'px';
+
+				if(calcDivider)
+					this.gitRepos[this.currentRepo].cdvDivider = ( 100 / (inlineWindowWidth / (summaryWidthInline))) / 100 ;
+			} else if(this.isCdvDocked()) {
+				let summaryWidthDocked = document.documentElement.clientWidth - this.gitRepos[this.currentRepo].cdvFilesWidth - 16;
+				if(summaryWidthDocked < minSummaryWidth) {
+					summaryWidthDocked = minSummaryWidth;
+					this.gitRepos[this.currentRepo].cdvFilesWidth = document.documentElement.clientWidth - summaryWidthDocked - 16;
+				}
+				dockedWindwow!.style.width = '100%';
+
+				if(calcDivider)
+					this.gitRepos[this.currentRepo].cdvDivider = ( 100 / (document.documentElement.clientWidth / (summaryWidthDocked))) / 100 ;
+
+			}
+		}
+		if(cdvElem)
+			this.setCdvHeight(this.isCdvDocked());
+		this.setCdvDivider();
+		this.saveRepoState();
+	}
 	private getCommitOrder(hash1: string, hash2: string) {
 		if (this.commitLookup[hash1] > this.commitLookup[hash2]) {
 			return { from: hash1, to: hash2 };
