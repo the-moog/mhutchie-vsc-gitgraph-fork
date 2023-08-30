@@ -11,6 +11,7 @@ import { GitDiffView } from './gitDiffView';
 
 export const UNCOMMITTED = '*';
 export const UNABLE_TO_FIND_GIT_MSG = 'Unable to find a Git executable. Either: Set the Visual Studio Code Setting "git.path" to the path and filename of an existing Git executable, or install Git and restart Visual Studio Code.';
+export const UNABLE_TO_FIND_LFS_MSG = 'Git LFS is not installed. Please install Git LFS to view real file contents. Showing LFS pointer file contents instead.';
 
 
 /* Path Manipulation */
@@ -594,6 +595,14 @@ function isWindows() {
  */
 export function showInformationMessage(message: string) {
 	return vscode.window.showInformationMessage(message).then(() => { }, () => { });
+}
+
+/**
+ * Show a Visual Studio Code Warning Message Dialog with the specified message.
+ * @param message The message to show.
+ */
+export function showWarningMessage(message: string) {
+	return vscode.window.showWarningMessage(message).then(() => { }, () => { });
 }
 
 /**

@@ -7,7 +7,7 @@ import { AskpassEnvironment, AskpassManager } from './askpass/askpassManager';
 import { getConfig } from './config';
 import { Logger } from './logger';
 import {ActionedUser, CommitOrdering, DateType, DeepWriteable, ErrorInfo, ErrorInfoExtensionPrefix, GitCommit, GitCommitDetails, GitCommitStash, GitConfigLocation, GitFileChange, GitFileStatus, GitPushBranchMode, GitRepoConfig, GitRepoConfigBranches, GitResetMode, GitSignature, GitSignatureStatus, GitStash, GitTagDetails, MergeActionOn, RebaseActionOn, SquashMessageFormat, TagType, Writeable } from './types';
-import { GitExecutable, GitVersionRequirement, UNABLE_TO_FIND_GIT_MSG, UNCOMMITTED, abbrevCommit, constructIncompatibleGitVersionMessage, doesVersionMeetRequirement, getPathFromStr, getPathFromUri, openGitTerminal, pathWithTrailingSlash, realpath, resolveSpawnOutput, showErrorMessage } from './utils';
+import { GitExecutable, GitVersionRequirement, UNABLE_TO_FIND_GIT_MSG, UNABLE_TO_FIND_LFS_MSG as UNABLE_TO_FIND_LFS_MSG, UNCOMMITTED, abbrevCommit, constructIncompatibleGitVersionMessage, doesVersionMeetRequirement, getPathFromStr, getPathFromUri, openGitTerminal, pathWithTrailingSlash, realpath, resolveSpawnOutput, showErrorMessage, showWarningMessage, ED, abbrevCommit, constructIncompatibleGitVersionMessage, doesVersionMeetRequirement, getPathFromStr, getPathFromUri, openGitTerminal, pathWithTrailingSlash, realpath, resolveSpawnOutput, showErrorMessage, showWarningMessage } from './utils'; } from './utils';
 import { Disposable } from './utils/disposable';
 import { Event } from './utils/event';
 
@@ -16,6 +16,7 @@ const EOL_REGEX = /\r\n|\r|\n/g;
 const INVALID_BRANCH_REGEXP = /^\(.* .*\)$/;
 const REMOTE_HEAD_BRANCH_REGEXP = /^remotes\/.*\/HEAD$/;
 const GIT_LOG_SEPARATOR = 'XX7Nal-YARtTpjCikii9nJxER19D6diSyk-AWkPb';
+const GIT_LFS_POINTER_SPEC = 'version https://git-lfs.github.com/spec/v1';
 
 export const enum GitConfigKey {
 	DiffGuiTool = 'diff.guitool',
@@ -490,10 +491,29 @@ export class DataSource extends Disposable {
 	 * @returns The file contents.
 	 */
 	public getCommitFile(repo: string, commitHash: string, filePath: string) {
-		return this._spawnGit(['show', commitHash + ':' + filePath], repo, stdout => {
+		return (this._spawnGit(['show', commitHash + ':' + filePath], repo, stdout => {
 			const encoding = getConfig(repo).fileEncoding;
 			return decode(stdout, encodingExists(encoding) ? encoding : 'utf8');
-		});
+		}).then((contents) => {
+			// Support LFS files
+			let isLfs = contents.startsWith(GIT_LFS_POINTER_SPEC);
+
+			if (!isLfs) {
+				// For regular file return already read contents
+				return contents;
+			} else {
+				// For LFS file read pointer and pipe to `git lfs smudge`
+				// Consider `echo contents | git lfs smudge`
+
+				/* Run `git lfs smudge` taking stdout as stdin */
+				return this._spawnGit(['lfs', 'smudge'], repo, stdout => {
+					const encoding = getConfig(repo).fileEncoding;
+					return decode(stdout, encodingExists(encoding) ? encoding : 'utf8');
+				}, contents).then((lfsContents) => {
+					return lfsContents;
+				});
+			}
+		}));
 	}
 
 
@@ -1706,7 +1726,7 @@ export class DataSource extends Disposable {
 	 * @returns A Promise resolving to the signature.
 	 */
 	private getTagSignature(repo: string, ref: string): Promise<GitSignature> {
-		return this._spawnGit(['verify-tag', '--raw', ref], repo, (stdout, stderr) => stderr || stdout.toString(), true).then((output) => {
+		return this._spawnGit(['verify-tag', '--raw', ref], repo, (stdout, stderr) => stderr || stdout.toString(), '', true).then((output) => {
 			const records = output.split(EOL_REGEX)
 				.filter((line) => line.startsWith('[GNUPG:] '))
 				.map((line) => line.split(' '));
@@ -1866,21 +1886,34 @@ export class DataSource extends Disposable {
 	 * @param args The arguments to pass to Git.
 	 * @param repo The repository to run the command in.
 	 * @param resolveValue A callback invoked to resolve the data from `stdout` and `stderr`.
+	 * @param stdin The data to pass to Git command via `stdin` (default: '' === disabled)
 	 * @param ignoreExitCode Ignore the exit code returned by Git (default: `FALSE`).
 	 */
-	private _spawnGit<T>(args: string[], repo: string, resolveValue: { (stdout: Buffer, stderr: string): T }, ignoreExitCode: boolean = false) {
+	private _spawnGit<T>(args: string[], repo: string, resolveValue: { (stdout: Buffer, stderr: string): T }, stdin: string = '', ignoreExitCode: boolean = false) {
 		return new Promise<T>((resolve, reject) => {
 			if (this.gitExecutable === null) {
 				return reject(UNABLE_TO_FIND_GIT_MSG);
 			}
 
-			resolveSpawnOutput(cp.spawn(this.gitExecutable.path, args, {
+			let lfs_cmd = cp.spawn(this.gitExecutable.path, args, {
 				cwd: repo,
 				env: Object.assign({}, process.env, this.askpassEnv)
-			})).then((values) => {
+			});
+
+			if (stdin !== '') {
+				/* STDIN - write previous command STDOUT to this STDIN */
+				lfs_cmd.stdin.write(stdin);
+			}
+
+			resolveSpawnOutput(lfs_cmd).then((values) => {
 				const status = values[0], stdout = values[1], stderr = values[2];
 				if (status.code === 0 || ignoreExitCode) {
 					resolve(resolveValue(stdout, stderr));
+				} else if ((args[0] === 'lfs') && (status.code === 1)) {
+					/* LFS is not installed, resolve with original file readout and emit warning notification */
+					showWarningMessage(UNABLE_TO_FIND_LFS_MSG);
+					this.logger.log('readout: ' + stdin);
+					resolve(resolveValue(Buffer.from(stdin), stderr));
 				} else {
 					reject(getErrorMessage(status.error, stdout, stderr));
 				}
