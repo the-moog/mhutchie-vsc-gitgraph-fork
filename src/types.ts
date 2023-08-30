@@ -376,6 +376,7 @@ export interface ContextMenuActionsVisibility {
 	};
 	readonly commitDetailsViewFile: {
 		readonly viewDiff: boolean;
+		readonly viewDiffInFile: boolean;
 		readonly viewFileAtThisRevision: boolean;
 		readonly viewDiffWithWorkingFile: boolean;
 		readonly openFile: boolean;
@@ -1227,6 +1228,17 @@ export interface RequestViewDiff extends RepoRequest {
 export interface ResponseViewDiff extends ResponseWithErrorInfo {
 	readonly command: 'viewDiff';
 }
+export interface RequestViewDiffInFile extends RepoRequest {
+	readonly command: 'viewDiffInFile';
+	readonly fromHash: string;
+	readonly toHash: string;
+	readonly oldFilePath: string;
+	readonly newFilePath: string;
+	readonly type: GitFileStatus;
+}
+export interface ResponseViewDiffInFile extends ResponseWithErrorInfo {
+	readonly command: 'viewDiffInFile';
+}
 
 export interface RequestViewDiffWithWorkingFile extends RepoRequest {
 	readonly command: 'viewDiffWithWorkingFile';
@@ -1314,11 +1326,12 @@ export type RequestMessage =
 	| RequestUpdateCodeReview
 	| RequestViewDiff
 	| RequestViewDiffWithWorkingFile
+	| RequestViewDiffInFile
 	| RequestViewFileAtRevision
 	| RequestViewScm;
 
 export type ResponseMessage =
-	ResponseAddRemote
+	| ResponseAddRemote
 	| ResponseAddTag
 	| ResponseApplyStash
 	| ResponseBranchFromStash
@@ -1375,6 +1388,7 @@ export type ResponseMessage =
 	| ResponseUpdateCodeReview
 	| ResponseViewDiff
 	| ResponseViewDiffWithWorkingFile
+	| ResponseViewDiffInFile
 	| ResponseViewFileAtRevision
 	| ResponseViewScm;
 
