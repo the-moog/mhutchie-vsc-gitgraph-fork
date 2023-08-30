@@ -15,6 +15,7 @@ class GitGraphView {
 	private currentBranches: string[] | null = null;
 	private currentAuthors: string[] | null = null;
 
+
 	private currentRepo!: string;
 	private currentRepoLoading: boolean = true;
 	private currentRepoRefreshState: {
@@ -802,7 +803,8 @@ class GitGraphView {
 			contextMenuOpen: {
 				summary: false,
 				fileView: -1
-			}
+			},
+			foldersExpanded: true
 		};
 		this.saveState();
 	}
@@ -2642,7 +2644,7 @@ class GitGraphView {
 		}
 		html += '</div><div id="cdvControls"><div class="cdvColorOverlay"></div><div id="cdvClose" class="cdvControlBtn" title="Close">' + SVG_ICONS.close + '</div>' +
 			(codeReviewPossible ? '<div id="cdvCodeReview" class="cdvControlBtn">' + SVG_ICONS.review + '</div>' : '') +
-			(!expandedCommit.loading ? '<div id="cdvFileViewTypeList" class="cdvControlBtn cdvFileViewTypeBtn" title="File List View">' + SVG_ICONS.fileList + '</div><div id="cdvFileViewTypeTree" class="cdvControlBtn cdvFileViewTypeBtn" title="File Tree View">' + SVG_ICONS.fileTree + '</div><div id="cdvCollapse" class="cdvControlBtn cdvFolderBtn" title="Collapse/Expand Folders">' + SVG_ICONS.collapseAll + '</div><div id="cdvExpand" class="cdvControlBtn cdvFolderBtn" title="Expand Folders">' + SVG_ICONS.expandAll + '</div>' : '') +
+			(!expandedCommit.loading ? '<div id="cdvFileViewTypeTree" class="cdvControlBtn cdvFileViewTypeBtn" title="File Tree View">' + SVG_ICONS.fileTree + '</div><div id="cdvFileViewTypeList" class="cdvControlBtn cdvFileViewTypeBtn" title="File List View">' + SVG_ICONS.fileList + '</div>' : '') +
 			(externalDiffPossible ? '<div id="cdvExternalDiff" class="cdvControlBtn">' + SVG_ICONS.linkExternal + '</div>' : '') +
 			'</div><div class="cdvHeightResize"></div>';
 
@@ -2718,12 +2720,6 @@ class GitGraphView {
 
 			document.getElementById('cdvFileViewTypeList')!.addEventListener('click', () => {
 				this.changeFileViewType(GG.FileViewType.List);
-			});
-			document.getElementById('cdvCollapse')!.addEventListener('click', () => {
-				this.openFolders(false);
-			});
-			document.getElementById('cdvExpand')!.addEventListener('click', () => {
-				this.openFolders(true);
 			});
 
 			if (codeReviewPossible) {
@@ -3023,29 +3019,6 @@ class GitGraphView {
 		this.renderCdvFileViewTypeBtns();
 	}
 
-	private openFolders(open:boolean) {
-		let expandedCommit = this.expandedCommit;
-		if (expandedCommit === null || expandedCommit.fileTree === null) return;
-		let folders = document.getElementsByClassName('fileTreeFolder');
-		for (let i = 0; i < folders.length; i++) {
-			let sourceElem = <HTMLElement>(folders[i]);
-			let parent = sourceElem.parentElement!;
-			if(open) {
-				parent.classList.remove('closed');
-				sourceElem.children[0].children[0].innerHTML = SVG_ICONS.openFolder;
-				parent.children[1].classList.remove('hidden');
-				alterFileTreeFolderOpen(expandedCommit.fileTree, decodeURIComponent(sourceElem.dataset.folderpath!), true);
-
-			} else{
-				parent.classList.add('closed');
-				sourceElem.children[0].children[0].innerHTML = SVG_ICONS.closedFolder;
-				parent.children[1].classList.add('hidden');
-				alterFileTreeFolderOpen(expandedCommit.fileTree, decodeURIComponent(sourceElem.dataset.folderpath!), false);
-			}
-		}
-		this.saveState();
-	}
-
 	private makeCdvFileViewInteractive() {
 		const getFileElemOfEventTarget = (target: EventTarget) => <HTMLElement>(<Element>target).closest('.fileTreeFileRecord');
 		const getFileOfFileElem = (fileChanges: ReadonlyArray<GG.GitFileChange>, fileElem: HTMLElement) => fileChanges[parseInt(fileElem.dataset.index!)];
@@ -3187,6 +3160,7 @@ class GitGraphView {
 			let parent = sourceElem.parentElement!;
 			parent.classList.toggle('closed');
 			let isOpen = !parent.classList.contains('closed');
+			this.changeOpenFolderBtn();
 			parent.children[0].children[0].innerHTML = isOpen ? SVG_ICONS.openFolder : SVG_ICONS.closedFolder;
 			parent.children[1].classList.toggle('hidden');
 			alterFileTreeFolderOpen(expandedCommit.fileTree, decodeURIComponent(sourceElem.dataset.folderpath!), isOpen);
@@ -3757,10 +3731,10 @@ window.addEventListener('load', () => {
 function generateFileViewHtml(folder: FileTreeFolder, gitFiles: ReadonlyArray<GG.GitFileChange>, lastViewedFile: string | null, fileContextMenuOpen: number, type: GG.FileViewType, isUncommitted: boolean) {
 	return type === GG.FileViewType.List
 		? generateFileListHtml(folder, gitFiles, lastViewedFile, fileContextMenuOpen, isUncommitted)
-		: generateFileTreeHtml(folder, gitFiles, lastViewedFile, fileContextMenuOpen, isUncommitted, true);
+		: generateFileTreeHtml(folder, gitFiles, lastViewedFile, fileContextMenuOpen, isUncommitted, true, true);
 }
 
-function generateFileTreeHtml(folder: FileTreeFolder, gitFiles: ReadonlyArray<GG.GitFileChange>, lastViewedFile: string | null, fileContextMenuOpen: number, isUncommitted: boolean, topLevelFolder: boolean): string {
+function generateFileTreeHtml(folder: FileTreeFolder, gitFiles: ReadonlyArray<GG.GitFileChange>, lastViewedFile: string | null, fileContextMenuOpen: number, isUncommitted: boolean, topLevelFolder: boolean, expanded:boolean): string {
 	const curFolderInfo = topLevelFolder || !initialState.config.commitDetailsView.fileTreeCompactFolders
 		? { folder: folder, name: folder.name, pathSeg: folder.name }
 		: getCurrentFolderInfo(folder, folder.name, folder.name);
@@ -3768,7 +3742,7 @@ function generateFileTreeHtml(folder: FileTreeFolder, gitFiles: ReadonlyArray<GG
 	const children = sortFolderKeys(curFolderInfo.folder).map((key) => {
 		const cur = curFolderInfo.folder.contents[key];
 		return cur.type === 'folder'
-			? generateFileTreeHtml(cur, gitFiles, lastViewedFile, fileContextMenuOpen, isUncommitted, false)
+			? generateFileTreeHtml(cur, gitFiles, lastViewedFile, fileContextMenuOpen, isUncommitted, false, expanded)
 			: generateFileTreeLeafHtml(cur.name, cur, gitFiles, lastViewedFile, fileContextMenuOpen, isUncommitted);
 	});
 
