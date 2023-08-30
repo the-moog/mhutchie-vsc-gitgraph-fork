@@ -895,7 +895,7 @@ body.tagLabelsRightAligned .gitRef.tag{
 	max-width:40vw;
 }
 
-#currentBtn, #findBtn, #terminalBtn, #settingsBtn, #fetchBtn, #refreshBtn{
+#jumpCommitBtn, #findBtn, #terminalBtn, #settingsBtn, #fetchBtn, #refreshBtn{
 	position:absolute;
 	top:50%;
 	width:20px;
@@ -905,7 +905,7 @@ body.tagLabelsRightAligned .gitRef.tag{
 	-webkit-user-select:none;
 	user-select:none;
 }
-#currentBtn{
+#jumpCommitBtn{
 	right:130px;
 }
 #findBtn{
@@ -927,7 +927,7 @@ body.tagLabelsRightAligned .gitRef.tag{
 #refreshBtn.refreshing{
 	cursor:default;
 }
-#currentBtn svg, #findBtn svg, #terminalBtn svg, #settingsBtn svg, #fetchBtn svg, #refreshBtn svg{
+#jumpCommitBtn svg, #findBtn svg, #terminalBtn svg, #settingsBtn svg, #fetchBtn svg, #refreshBtn svg{
 	position:absolute;
 	fill:var(--vscode-editor-foreground);
 	opacity:0.8;
@@ -935,17 +935,17 @@ body.tagLabelsRightAligned .gitRef.tag{
 	stroke-opacity:0.5;
 	stroke-width:0;
 }
-#currentBtn svg, #findBtn svg, #terminalBtn svg{
+#jumpCommitBtn svg, #findBtn svg, #terminalBtn svg{
 	stroke-width:0.5px;
 }
-#currentBtn:hover svg, #findBtn:hover svg, #terminalBtn:hover svg, #settingsBtn:hover svg, #fetchBtn:hover svg, #refreshBtn:hover svg{
+#jumpCommitBtn:hover svg, #findBtn:hover svg, #terminalBtn:hover svg, #settingsBtn:hover svg, #fetchBtn:hover svg, #refreshBtn:hover svg{
 	opacity:1;
 	stroke-width:0.5px;
 }
-#currentBtn:hover svg, #findBtn:hover svg, #terminalBtn:hover svg{
+#jumpCommitBtn:hover svg, #findBtn:hover svg, #terminalBtn:hover svg{
 	stroke-width:1px;
 }
-#currentBtn svg, #findBtn svg, #terminalBtn svg, #settingsBtn svg, #fetchBtn svg{
+#jumpCommitBtn svg, #findBtn svg, #terminalBtn svg, #settingsBtn svg, #fetchBtn svg{
 	left:1px;
 	top:1px;
 	width:18px !important;
@@ -973,6 +973,9 @@ body.tagLabelsRightAligned .gitRef.tag{
 }
 #controls.fetchSupported #findBtn{
 	right:130px;
+}
+#controls.fetchSupported #jumpCommitBtn{
+	right:160px;
 }
 #controls.fetchSupported #terminalBtn{
 	right:100px;

@@ -4341,12 +4341,14 @@ class GitGraphView {
 			this.requestLoadRepoInfoAndCommits(false, false);
 		}
 
-		const fetchBtn = document.getElementById('fetchBtn')!, findBtn = document.getElementById('findBtn')!, settingsBtn = document.getElementById('settingsBtn')!, terminalBtn = document.getElementById('terminalBtn')!;
+		const fetchBtn = document.getElementById('fetchBtn')!, findBtn = document.getElementById('findBtn')!, jumpCommitBtn = document.getElementById('jumpCommitBtn')!, settingsBtn = document.getElementById('settingsBtn')!, terminalBtn = document.getElementById('terminalBtn')!;
 		fetchBtn.title = 'Fetch' + (this.config.fetchAndPrune ? ' & Prune' : '') + ' from Remote(s)';
 		fetchBtn.innerHTML = SVG_ICONS.download;
 		fetchBtn.addEventListener('click', () => this.fetchFromRemotesAction());
 		findBtn.innerHTML = SVG_ICONS.search;
 		findBtn.addEventListener('click', () => this.findWidget.show(true));
+		jumpCommitBtn.innerHTML = SVG_ICONS.commit;
+		jumpCommitBtn.addEventListener('click', () => this.findWidget.show(true));
 		settingsBtn.innerHTML = SVG_ICONS.gear;
 		settingsBtn.addEventListener('click', () => this.settingsWidget.show(this.currentRepo));
 		terminalBtn.innerHTML = SVG_ICONS.terminal;
